@@ -1,0 +1,129 @@
+{{- $workerName := printf "%s-worker" (include "bhumi.fullname" .) -}}
+{{- $beatName   := printf "%s-beat"   (include "bhumi.fullname" .) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $workerName }}
+  labels:
+    {{- include "bhumi.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: {{ .Values.replicaCount.worker }}
+  selector:
+    matchLabels:
+      {{- include "bhumi.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        {{- include "bhumi.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: worker
+    spec:
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.worker.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: worker
+          image: "{{ .Values.image.worker.repository }}:{{ .Values.image.worker.tag }}"
+          imagePullPolicy: {{ .Values.image.worker.pullPolicy }}
+          command:
+            - celery
+            - -A
+            - bhumi.celery_app
+            - worker
+            - --loglevel=info
+            - --queues={{ .Values.worker.queues }}
+            - --concurrency={{ .Values.worker.concurrency }}
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: bhumi-secrets
+                  key: database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: bhumi-secrets
+                  key: redis-url
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: bhumi-secrets
+                  key: secret-key
+          envFrom:
+            - configMapRef:
+                name: {{ include "bhumi.fullname" . }}-config
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          {{- if .Values.worker.gpuEnabled }}
+          resources:
+            limits:
+              nvidia.com/gpu: "1"
+          {{- end }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: model-weights
+              mountPath: /app/weights
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: model-weights
+          persistentVolumeClaim:
+            claimName: {{ include "bhumi.fullname" . }}-model-weights
+---
+# Celery Beat — one replica only (scheduler)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $beatName }}
+  labels:
+    {{- include "bhumi.labels" . | nindent 4 }}
+    app.kubernetes.io/component: beat
+spec:
+  replicas: {{ .Values.replicaCount.beat }}
+  selector:
+    matchLabels:
+      {{- include "bhumi.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: beat
+  strategy:
+    type: Recreate    # only ever one beat scheduler
+  template:
+    metadata:
+      labels:
+        {{- include "bhumi.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: beat
+    spec:
+      containers:
+        - name: beat
+          image: "{{ .Values.image.worker.repository }}:{{ .Values.image.worker.tag }}"
+          command:
+            - celery
+            - -A
+            - bhumi.celery_app
+            - beat
+            - --loglevel=info
+            - --scheduler=redbeat.RedBeatScheduler
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: bhumi-secrets
+                  key: redis-url
+          envFrom:
+            - configMapRef:
+                name: {{ include "bhumi.fullname" . }}-config
+          resources:
+            {{- toYaml .Values.beat.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

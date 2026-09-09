@@ -1,0 +1,193 @@
+# ============================================================
+# BHUMI — Helm values (override per environment)
+# ============================================================
+
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# ── Replica counts ───────────────────────────────────────────
+replicaCount:
+  api:     2
+  worker:  3
+  web:     2
+  beat:    1
+
+# ── Image tags ───────────────────────────────────────────────
+image:
+  api:
+    repository: ghcr.io/bhumi-gov/api
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  worker:
+    repository: ghcr.io/bhumi-gov/worker
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  web:
+    repository: ghcr.io/bhumi-gov/web
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+# ── Ingress ──────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: bhumi.gov.in
+      paths:
+        - path: /
+          pathType: Prefix
+          service: web
+        - path: /api
+          pathType: Prefix
+          service: api
+  tls:
+    - secretName: bhumi-tls
+      hosts:
+        - bhumi.gov.in
+
+# ── API service ──────────────────────────────────────────────
+api:
+  port: 8000
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  env:
+    LOG_LEVEL: INFO
+    WORKERS: "2"
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 8000
+    initialDelaySeconds: 20
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /readyz
+      port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+# ── Celery worker ────────────────────────────────────────────
+worker:
+  queues: ocr,extraction,validation,sync
+  concurrency: 4
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 3Gi
+  gpuEnabled: false        # set true on GPU node pool
+  nodeSelector: {}         # e.g. cloud.google.com/gke-accelerator: nvidia-tesla-t4
+
+# ── Celery beat ──────────────────────────────────────────────
+beat:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# ── Next.js web ──────────────────────────────────────────────
+web:
+  port: 3000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ── Secrets (set via --set or external-secrets) ──────────────
+secrets:
+  # Provide these values externally; never commit to git.
+  databaseUrl: ""           # postgresql+asyncpg://...
+  syncDatabaseUrl: ""       # postgresql+psycopg://...
+  redisUrl: ""              # redis://...
+  secretKey: ""
+  minioAccessKey: ""
+  minioSecretKey: ""
+
+# ── Bitnami sub-chart toggles ────────────────────────────────
+postgresql:
+  enabled: true
+  auth:
+    username: bhumi
+    database: bhumi
+    existingSecret: bhumi-postgres-secret
+  primary:
+    persistence:
+      size: 50Gi
+    initdb:
+      scripts:
+        extensions.sql: |
+          CREATE EXTENSION IF NOT EXISTS postgis;
+          CREATE EXTENSION IF NOT EXISTS pg_trgm;
+          CREATE EXTENSION IF NOT EXISTS unaccent;
+
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    existingSecret: bhumi-redis-secret
+  master:
+    persistence:
+      size: 4Gi
+
+minio:
+  enabled: true
+  mode: standalone
+  auth:
+    existingSecret: bhumi-minio-secret
+  persistence:
+    size: 100Gi
+  defaultBuckets: "bhumi-scans,bhumi-clean,bhumi-maps"
+
+# ── Monitoring ───────────────────────────────────────────────
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+
+# ── Pod disruption budgets ───────────────────────────────────
+podDisruptionBudget:
+  api:
+    minAvailable: 1
+  worker:
+    minAvailable: 1
+
+# ── Network policies ─────────────────────────────────────────
+networkPolicy:
+  enabled: true
+  # Allow only in-cluster traffic to postgres and redis
+
+# ── Security context ─────────────────────────────────────────
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]

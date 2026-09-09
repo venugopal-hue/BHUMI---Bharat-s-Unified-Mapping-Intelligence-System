@@ -1,0 +1,14 @@
+# Cloudflare Pages — BHUMI Web Frontend
+# Deploy via: Cloudflare Dashboard → Pages → Connect to Git
+# Or CLI: npx wrangler pages deploy .next/
+
+name = "bhumi-web"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+pages_build_output_dir = ".vercel/output/static"
+
+[vars]
+NODE_ENV = "production"
+# NEXT_PUBLIC_API_URL is set in Cloudflare Pages dashboard under
+# Settings → Environment Variables (so it stays out of source control)

@@ -1,0 +1,11 @@
+# Railway configuration — BHUMI Celery Worker service
+# Add a second service in the same Railway project pointing to this file
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "infra/docker/worker.Dockerfile"
+
+[deploy]
+startCommand = "celery -A worker.celery_app worker --loglevel=INFO --concurrency=2 -Q pipeline,publish,learning"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5

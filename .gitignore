@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+.eslintcache
+
+# Env & secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ML artifacts
+ml/models/
+*.pt
+*.pth
+*.onnx
+*.safetensors
+mlruns/
+wandb/
+
+# Data (large / generated)
+data/generated/
+data/scratch/
+data/samples/**/*.pdf
+data/samples/**/*.tif
+!data/samples/.gitkeep
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Docker / local
+docker-compose.override.yml
+*.log

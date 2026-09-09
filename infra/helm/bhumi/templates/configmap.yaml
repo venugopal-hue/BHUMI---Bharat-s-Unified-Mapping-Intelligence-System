@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "bhumi.fullname" . }}-config
+  labels:
+    {{- include "bhumi.labels" . | nindent 4 }}
+data:
+  MINIO_ENDPOINT: "{{ include "bhumi.fullname" . }}-minio:9000"
+  MINIO_BUCKET_SCANS: "bhumi-scans"
+  MINIO_BUCKET_CLEAN: "bhumi-clean"
+  MINIO_BUCKET_MAPS: "bhumi-maps"
+  CELERY_BROKER_URL: "$(REDIS_URL)/0"
+  CELERY_RESULT_BACKEND: "$(REDIS_URL)/1"
+  LAYOUT_BACKEND: "yolo"
+  LAYOUT_DEVICE: "cpu"
+  LAYOUT_CONF: "0.35"
+  LAYOUT_IOU: "0.45"
+  SENTRY_ENVIRONMENT: {{ .Release.Namespace | quote }}
+  CORS_ORIGINS: "https://bhumi.gov.in"
+  JWT_ALGORITHM: "HS256"
+  ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+  REFRESH_TOKEN_EXPIRE_DAYS: "30"

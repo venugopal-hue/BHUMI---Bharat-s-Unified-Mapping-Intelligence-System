@@ -1,0 +1,277 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===================================================================
+   BHUMI design tokens
+
+   Anchored on Indian government convention - Ashoka blue, saffron
+   accents - but tuned for screen legibility at 1366x768 on the
+   hardware a tehsil office actually runs. Every colour is defined
+   once here, so dark mode and the GIGW-mandated high-contrast mode
+   are variable swaps, not component rewrites.
+   =================================================================== */
+
+:root {
+  /* Brand */
+  --bhumi-primary: 11 79 143;          /* #0B4F8F - Ashoka-derived deep blue */
+  --bhumi-primary-fg: 255 255 255;
+  --bhumi-primary-soft: 232 241 250;
+  --bhumi-accent: 194 65 12;           /* #C2410C - saffron-derived */
+  --bhumi-accent-soft: 254 240 231;
+
+  /* Status */
+  --bhumi-success: 21 128 61;
+  --bhumi-success-soft: 232 247 237;
+  --bhumi-warn: 180 83 9;
+  --bhumi-warn-soft: 254 246 229;
+  --bhumi-danger: 185 28 28;
+  --bhumi-danger-soft: 254 236 236;
+  --bhumi-info: 3 105 161;
+  --bhumi-info-soft: 231 244 252;
+
+  /* Surfaces */
+  --bhumi-bg: 246 248 251;
+  --bhumi-surface: 255 255 255;
+  --bhumi-surface-2: 250 251 253;
+  --bhumi-border: 220 227 237;
+  --bhumi-text: 15 23 42;
+  --bhumi-muted: 90 107 130;
+
+  /* Confidence ramp - always paired with a number and an icon, never
+     colour alone. Roughly 8% of Indian men have a colour-vision
+     deficiency; a record that is only "red" is unreadable to them. */
+  --conf-high: 21 128 61;
+  --conf-good: 13 148 136;
+  --conf-medium: 180 83 9;
+  --conf-low: 185 28 28;
+
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  --font-deva: "Noto Sans Devanagari", var(--font-sans);
+
+  /* GIGW text-size controls (A- / A / A+) rescale from here. */
+  --font-scale: 1;
+
+  --header-height: 4rem;
+  --sidebar-width: 15rem;
+  --sidebar-width-collapsed: 4rem;
+}
+
+[data-theme="dark"] {
+  --bhumi-primary: 77 159 232;
+  --bhumi-primary-fg: 6 24 43;
+  --bhumi-primary-soft: 17 38 61;
+  --bhumi-accent: 251 146 60;
+  --bhumi-accent-soft: 57 32 16;
+
+  --bhumi-success: 74 222 128;
+  --bhumi-success-soft: 16 44 28;
+  --bhumi-warn: 251 191 36;
+  --bhumi-warn-soft: 53 40 12;
+  --bhumi-danger: 248 113 113;
+  --bhumi-danger-soft: 60 22 22;
+  --bhumi-info: 56 189 248;
+  --bhumi-info-soft: 12 40 56;
+
+  --bhumi-bg: 2 6 23;
+  --bhumi-surface: 15 23 42;
+  --bhumi-surface-2: 22 32 54;
+  --bhumi-border: 30 41 59;
+  --bhumi-text: 226 232 240;
+  --bhumi-muted: 148 163 184;
+
+  --conf-high: 74 222 128;
+  --conf-good: 45 212 191;
+  --conf-medium: 251 191 36;
+  --conf-low: 248 113 113;
+}
+
+/* High contrast - a separate mode from dark, required by GIGW 3.0.
+   Pure black on white with heavier borders, for low-vision users
+   and glare-lit counters. */
+[data-contrast="high"] {
+  --bhumi-bg: 255 255 255;
+  --bhumi-surface: 255 255 255;
+  --bhumi-surface-2: 255 255 255;
+  --bhumi-border: 0 0 0;
+  --bhumi-text: 0 0 0;
+  --bhumi-muted: 40 40 40;
+  --bhumi-primary: 0 51 153;
+  --bhumi-primary-soft: 255 255 255;
+  --conf-high: 0 102 0;
+  --conf-good: 0 85 85;
+  --conf-medium: 153 76 0;
+  --conf-low: 170 0 0;
+}
+
+[data-contrast="high"] * {
+  border-color: rgb(var(--bhumi-border)) !important;
+}
+
+@layer base {
+  html {
+    font-size: calc(16px * var(--font-scale));
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-ground text-ink font-sans antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "tnum";
+  }
+
+  /* Land identifiers are read character by character. Tabular, monospaced
+     digits stop 0/O and 1/l being confused on a survey number. */
+  .id-text {
+    @apply font-mono tracking-tight;
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+
+  :lang(hi), :lang(mr), :lang(ne) { font-family: var(--font-deva); }
+
+  *:focus-visible {
+    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-ground;
+  }
+
+  ::selection {
+    background: rgb(var(--bhumi-primary) / 0.18);
+  }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: rgb(var(--bhumi-bg)); }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--bhumi-border));
+    border-radius: 6px;
+    border: 2px solid rgb(var(--bhumi-bg));
+  }
+  ::-webkit-scrollbar-thumb:hover { background: rgb(var(--bhumi-muted) / 0.6); }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface border border-line rounded-card shadow-card;
+  }
+
+  .card-hover {
+    @apply transition-shadow duration-150 hover:shadow-raised;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium
+           transition-colors duration-150 disabled:opacity-50 disabled:pointer-events-none
+           px-3.5 py-2 whitespace-nowrap;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium
+           transition-colors duration-150 disabled:opacity-50 disabled:pointer-events-none
+           px-3.5 py-2 whitespace-nowrap bg-primary text-primary-fg hover:bg-primary/90;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium
+           transition-colors duration-150 disabled:opacity-50 disabled:pointer-events-none
+           px-3.5 py-2 whitespace-nowrap bg-surface border border-line text-ink hover:bg-surface-2;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium
+           transition-colors duration-150 disabled:opacity-50 disabled:pointer-events-none
+           px-3.5 py-2 whitespace-nowrap text-muted hover:bg-surface-2 hover:text-ink;
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium
+           transition-colors duration-150 disabled:opacity-50 disabled:pointer-events-none
+           px-3.5 py-2 whitespace-nowrap bg-danger text-white hover:bg-danger/90;
+  }
+  .btn-success {
+    @apply inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium
+           transition-colors duration-150 disabled:opacity-50 disabled:pointer-events-none
+           px-3.5 py-2 whitespace-nowrap bg-success text-white hover:bg-success/90;
+  }
+  .btn-sm { @apply px-2.5 py-1.5 text-xs; }
+
+  .input {
+    @apply w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink
+           placeholder:text-muted/70 focus:border-primary focus:outline-none
+           focus:ring-2 focus:ring-primary/20 transition-colors;
+  }
+
+  .label {
+    @apply block text-xs font-medium text-muted mb-1.5;
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5
+           text-2xs font-semibold uppercase tracking-wide;
+  }
+
+  .table-cell { @apply px-3 py-2.5 text-sm align-middle; }
+  .table-head {
+    @apply px-3 py-2.5 text-2xs font-semibold uppercase tracking-wider
+           text-muted text-left bg-surface-2 sticky top-0 z-10;
+  }
+
+  /* Compact density for the ten-year-old monitors in a tehsil office. */
+  [data-density="compact"] .table-cell { @apply px-2 py-1.5 text-xs; }
+  [data-density="compact"] .card { @apply rounded-md; }
+
+  .skeleton {
+    @apply relative overflow-hidden bg-surface-2 rounded;
+  }
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0 -translate-x-full animate-shimmer;
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      rgb(var(--bhumi-surface) / 0.6),
+      transparent
+    );
+  }
+
+  /* Skip link - first focusable element on every page, per GIGW. */
+  .form-input {
+    @apply w-full rounded-card border border-line bg-surface px-3 py-2.5 text-sm text-ink
+           placeholder:text-muted outline-none focus:border-primary focus:ring-2 focus:ring-primary/20
+           disabled:opacity-50 disabled:cursor-not-allowed transition-colors;
+  }
+
+  .skip-link {
+    @apply absolute left-3 -top-16 z-[100] rounded-md bg-primary px-4 py-2
+           text-sm font-medium text-primary-fg focus:top-3 transition-all;
+  }
+}
+
+@layer utilities {
+  .scanline-mask {
+    background: linear-gradient(
+      180deg,
+      transparent,
+      rgb(var(--bhumi-primary) / 0.28),
+      transparent
+    );
+  }
+
+  .grid-paper {
+    background-image:
+      linear-gradient(rgb(var(--bhumi-border) / 0.5) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--bhumi-border) / 0.5) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+}
+
+/* Respect the user's motion preference - required for WCAG 2.1 AA. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Records and reports must print cleanly on A4 with the government header. */
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff; color: #000; }
+  .card { border: 1px solid #999; box-shadow: none; break-inside: avoid; }
+  a[href]::after { content: " (" attr(href) ")"; font-size: 0.75em; color: #555; }
+}

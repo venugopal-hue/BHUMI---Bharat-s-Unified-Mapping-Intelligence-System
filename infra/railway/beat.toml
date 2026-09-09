@@ -1,0 +1,10 @@
+# Railway configuration — BHUMI Celery Beat (scheduler)
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "infra/docker/worker.Dockerfile"
+
+[deploy]
+startCommand = "celery -A worker.celery_app beat --loglevel=INFO"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

@@ -1,0 +1,14 @@
+# Railway configuration — BHUMI API service
+# Deploy this repo on Railway → New Project → Deploy from GitHub repo
+# Set environment variables in Railway dashboard (see .env.example)
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "infra/docker/api.Dockerfile"
+
+[deploy]
+startCommand = "python -m bhumi.scripts.init_db && uvicorn bhumi.main:app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/health"
+healthcheckTimeout = 60
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

@@ -1,0 +1,25 @@
+# Vision
+opencv-python-headless==4.10.0.84
+scikit-image==0.25.0
+pytesseract==0.3.13
+pdf2image==1.17.0
+
+# NLP / matching
+regex==2024.11.6
+rapidfuzz==3.11.0
+python-dateutil==2.9.0.post0
+
+# Geo
+shapely==2.0.6
+pyproj==3.7.0
+
+# Numerics
+numpy==2.2.1
+scipy==1.15.0
+
+# Optional heavy models — installed in the GPU image, not the CPU demo image.
+# paddleocr==2.9.1
+# paddlepaddle==2.6.2
+# torch==2.5.1
+# transformers==4.47.1
+# ultralytics==8.3.55

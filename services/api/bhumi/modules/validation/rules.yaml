@@ -1,0 +1,656 @@
+# ═══════════════════════════════════════════════════════════════════
+# BHUMI · Validation rule library
+#
+# Rules are data. Editing this file (or the Rules Manager screen, which writes
+# the same shape to the database) changes validation behaviour with no code
+# change and no redeploy.
+#
+# severity: BLOCKING  publication is refused until resolved
+#           ERROR     record goes to the exception queue
+#           WARNING   record is flagged but may be approved
+#           REVIEW    routed to a human for judgement, not necessarily wrong
+#           INFO      recorded only
+# ═══════════════════════════════════════════════════════════════════
+
+# ── 1. Mandatory fields ────────────────────────────────────────────
+- id: MANDATORY_SURVEY_NUMBER
+  name: Survey number present
+  category: mandatory
+  severity: BLOCKING
+  order: 10
+  expression: "not_blank(survey_number) or not_blank(khasra_number)"
+  message_en: "Neither a survey number nor a khasra number could be read."
+  message_hi: "सर्वे नंबर अथवा खसरा नंबर पढ़ा नहीं जा सका।"
+  fix_hint: "Locate the parcel identifier on the document header and enter it manually."
+  affected_fields: [survey_number, khasra_number]
+
+- id: MANDATORY_OWNER_NAME
+  name: Owner name present
+  category: mandatory
+  severity: BLOCKING
+  order: 11
+  expression: "not_blank(owner_name)"
+  message_en: "Owner name is missing."
+  message_hi: "स्वामी का नाम अनुपलब्ध है।"
+  fix_hint: "The owner name is usually in the first column of the ownership block."
+  affected_fields: [owner_name]
+
+- id: MANDATORY_VILLAGE
+  name: Village present
+  category: mandatory
+  severity: BLOCKING
+  order: 12
+  expression: "not_blank(village)"
+  message_en: "Village could not be determined."
+  fix_hint: "Set the village on the batch, or read it from the document header."
+  affected_fields: [village]
+
+- id: MANDATORY_DISTRICT
+  name: District present
+  category: mandatory
+  severity: BLOCKING
+  order: 13
+  expression: "not_blank(district)"
+  message_en: "District could not be determined."
+  affected_fields: [district]
+
+- id: MANDATORY_AREA
+  name: Plot area present
+  category: mandatory
+  severity: BLOCKING
+  order: 14
+  expression: "float(plot_area, 0) > 0"
+  message_en: "Plot area is missing or zero."
+  fix_hint: "Area is normally in the land-details column, with its unit alongside."
+  affected_fields: [plot_area, area_unit]
+
+# ── 2. Format rules ────────────────────────────────────────────────
+- id: FORMAT_SURVEY_NUMBER
+  name: Survey number format
+  category: format
+  severity: ERROR
+  order: 20
+  requires: [survey_number]
+  expression: "matches(strip(survey_number), r'[0-9]{1,5}([/\\-][0-9A-Za-z]{1,6}){0,3}')"
+  params:
+    pattern: "digits, optionally followed by / or - and a sub-division"
+  message_en: "Survey number '{survey_number}' does not look like a valid identifier."
+  message_hi: "सर्वे नंबर '{survey_number}' मान्य प्रारूप में नहीं है।"
+  fix_hint: "Expected formats: 142, 142/2, 142/2A, 142-2."
+  affected_fields: [survey_number]
+
+- id: FORMAT_KHASRA_NUMBER
+  name: Khasra number format
+  category: format
+  severity: ERROR
+  order: 21
+  requires: [khasra_number]
+  expression: "matches(strip(khasra_number), r'[0-9]{1,6}([/\\-][0-9A-Za-z]{1,6})?')"
+  message_en: "Khasra number '{khasra_number}' is not in an expected format."
+  affected_fields: [khasra_number]
+
+- id: FORMAT_KHATA_NUMBER
+  name: Khata number format
+  category: format
+  severity: WARNING
+  order: 22
+  requires: [khata_number]
+  expression: "matches(strip(khata_number), r'[0-9A-Za-z/\\-]{1,20}')"
+  message_en: "Khata number '{khata_number}' contains unexpected characters."
+  affected_fields: [khata_number]
+
+- id: FORMAT_PIN_CODE
+  name: PIN code is six digits
+  category: format
+  severity: ERROR
+  order: 23
+  requires: [pin_code]
+  expression: "matches(strip(pin_code), r'[1-9][0-9]{5}')"
+  message_en: "PIN code '{pin_code}' is not a valid six-digit Indian PIN."
+  affected_fields: [pin_code]
+
+- id: FORMAT_OWNER_NAME_LENGTH
+  name: Owner name plausible length
+  category: format
+  severity: WARNING
+  order: 24
+  requires: [owner_name]
+  expression: "2 <= len(strip(owner_name)) <= 120"
+  message_en: "Owner name length ({owner_name}) is implausible — likely an OCR artefact."
+  fix_hint: "Check whether two names were merged or a name was truncated."
+  affected_fields: [owner_name]
+
+- id: FORMAT_OWNER_NAME_NO_DIGITS
+  name: Owner name has no digits
+  category: format
+  severity: WARNING
+  order: 25
+  requires: [owner_name]
+  expression: "not any(c.isdigit() for c in str(owner_name))"
+  message_en: "Owner name '{owner_name}' contains digits, which usually means a column bled in."
+  affected_fields: [owner_name]
+
+- id: FORMAT_MUTATION_NUMBER
+  name: Mutation number format
+  category: format
+  severity: WARNING
+  order: 26
+  requires: [mutation_number]
+  expression: "matches(strip(mutation_number), r'[0-9A-Za-z/\\-]{1,24}')"
+  message_en: "Mutation number '{mutation_number}' is not in an expected format."
+  affected_fields: [mutation_number]
+
+- id: FORMAT_AREA_UNIT_KNOWN
+  name: Area unit is recognised
+  category: format
+  severity: ERROR
+  order: 27
+  requires: [area_unit]
+  expression: >
+    lower(area_unit) in ['hectare','ha','acre','bigha','biswa','guntha','kanal',
+    'marla','cent','ground','katha','are','sq_metre','sqm','square metre']
+  message_en: "Area unit '{area_unit}' is not a recognised land measurement unit."
+  fix_hint: "Pick the unit printed on the document; BHUMI converts it to square metres."
+  affected_fields: [area_unit]
+
+- id: FORMAT_LAND_CLASS_VOCAB
+  name: Land classification in controlled vocabulary
+  category: format
+  severity: WARNING
+  order: 28
+  requires: [land_classification]
+  expression: >
+    land_classification in ['IRRIGATED','UNIRRIGATED','BARREN','FOREST','ABADI',
+    'GOVERNMENT','WATER_BODY','PASTURE','ORCHARD','COMMERCIAL','UNKNOWN']
+  message_en: "Land classification '{land_classification}' is outside the standard vocabulary."
+  affected_fields: [land_classification]
+
+# ── 3. Range and sanity ────────────────────────────────────────────
+- id: RANGE_AREA_POSITIVE
+  name: Area is positive
+  category: range
+  severity: ERROR
+  order: 30
+  requires: [plot_area_sqm]
+  expression: "float(plot_area_sqm, 0) > 0"
+  message_en: "Plot area must be greater than zero."
+  affected_fields: [plot_area]
+
+- id: RANGE_AREA_UPPER_BOUND
+  name: Area within plausible bounds
+  category: range
+  severity: REVIEW
+  order: 31
+  requires: [plot_area_sqm]
+  params: { max_sqm: 100000000 }
+  expression: "float(plot_area_sqm, 0) <= max_sqm"
+  message_en: "Plot area of {plot_area_sqm} m² exceeds 10,000 hectares — verify the unit."
+  fix_hint: "A misread unit (bigha read as hectare) is the usual cause."
+  affected_fields: [plot_area, area_unit]
+
+- id: RANGE_AREA_TINY
+  name: Area not implausibly small
+  category: range
+  severity: WARNING
+  order: 32
+  requires: [plot_area_sqm]
+  expression: "float(plot_area_sqm, 0) >= 1"
+  message_en: "Plot area of {plot_area_sqm} m² is smaller than one square metre."
+  affected_fields: [plot_area, area_unit]
+
+- id: RANGE_RECORD_YEAR
+  name: Record year plausible
+  category: range
+  severity: ERROR
+  order: 33
+  requires: [record_year]
+  expression: "1850 <= int(record_year, 0) <= today().year"
+  message_en: "Record year {record_year} is outside the plausible range 1850–present."
+  affected_fields: [record_year]
+
+- id: RANGE_OWNER_SHARE
+  name: Owner share is a valid fraction
+  category: range
+  severity: ERROR
+  order: 34
+  requires: [owner_share]
+  expression: "0 < float(owner_share, 0) <= 1"
+  message_en: "Owner share {owner_share} must be greater than 0 and at most 1."
+  fix_hint: "Shares are stored as fractions — 1/3 is 0.3333, not 33."
+  affected_fields: [owner_share]
+
+- id: RANGE_REVENUE_NON_NEGATIVE
+  name: Revenue assessment non-negative
+  category: range
+  severity: WARNING
+  order: 35
+  requires: [revenue_assessment]
+  expression: "float(revenue_assessment, 0) >= 0"
+  message_en: "Revenue assessment cannot be negative."
+  affected_fields: [revenue_assessment]
+
+# ── 4. Referential integrity against LGD master data ───────────────
+- id: REF_VILLAGE_EXISTS
+  name: Village exists in the LGD directory
+  category: referential
+  severity: ERROR
+  order: 40
+  requires: [village]
+  expression: "village_exists_in_master == True"
+  message_en: "Village '{village}' was not found in the Local Government Directory for this tehsil."
+  message_hi: "गाँव '{village}' इस तहसील की एलजीडी सूची में नहीं मिला।"
+  fix_hint: "Check the spelling, or select the correct village from the picker."
+  affected_fields: [village]
+
+- id: REF_TEHSIL_IN_DISTRICT
+  name: Tehsil belongs to the stated district
+  category: referential
+  severity: ERROR
+  order: 41
+  requires: [tehsil, district]
+  expression: "tehsil_in_district == True"
+  message_en: "Tehsil '{tehsil}' does not belong to district '{district}'."
+  affected_fields: [tehsil, district]
+
+- id: REF_DISTRICT_IN_STATE
+  name: District belongs to the stated state
+  category: referential
+  severity: ERROR
+  order: 42
+  requires: [district, state]
+  expression: "district_in_state == True"
+  message_en: "District '{district}' does not belong to state '{state}'."
+  affected_fields: [district, state]
+
+- id: REF_PIN_MATCHES_DISTRICT
+  name: PIN code consistent with district
+  category: referential
+  severity: WARNING
+  order: 43
+  requires: [pin_code, district]
+  expression: "pin_matches_district != False"
+  message_en: "PIN code {pin_code} is not normally used in district {district}."
+  affected_fields: [pin_code]
+
+# ── 5. Arithmetic consistency ──────────────────────────────────────
+- id: ARITH_SHARES_SUM_TO_ONE
+  name: Co-owner shares sum to one
+  category: arithmetic
+  severity: ERROR
+  order: 50
+  requires: [co_owner_share_sum]
+  expression: "abs(float(co_owner_share_sum, 0) - 1.0) <= 0.001"
+  message_en: "Co-owner shares total {co_owner_share_sum} instead of 1.0."
+  message_hi: "सह-स्वामियों के हिस्सों का योग 1.0 के स्थान पर {co_owner_share_sum} है।"
+  fix_hint: "Check for a missing co-owner row or a misread fraction."
+  affected_fields: [owner_share]
+
+- id: ARITH_SUBPLOT_AREA_SUM
+  name: Sub-plot areas sum to the parent area
+  category: arithmetic
+  severity: ERROR
+  order: 51
+  requires: [subplot_area_sum, plot_area_sqm]
+  expression: "abs(float(subplot_area_sum,0) - float(plot_area_sqm,0)) / float(plot_area_sqm,1) <= 0.02"
+  message_en: "Sub-plot areas total {subplot_area_sum} m² against a parent area of {plot_area_sqm} m²."
+  affected_fields: [plot_area]
+
+- id: ARITH_AREA_UNIT_CONVERSION
+  name: Converted area matches the original
+  category: arithmetic
+  severity: WARNING
+  order: 52
+  requires: [plot_area, plot_area_sqm, area_unit_factor]
+  expression: >
+    abs(float(plot_area,0) * float(area_unit_factor,1) - float(plot_area_sqm,0))
+    / float(plot_area_sqm,1) <= 0.01
+  message_en: "Unit conversion is inconsistent for {plot_area} {area_unit}."
+  fix_hint: "The local value of this unit may differ in this district — check the conversion table."
+  affected_fields: [plot_area, area_unit]
+
+# ── 6. Geometry reconciliation (text vs map) ───────────────────────
+- id: GEOM_AREA_MATCH
+  name: Recorded area matches the mapped parcel
+  category: geometry
+  severity: ERROR
+  order: 60
+  requires: [plot_area_sqm, parcel_area_sqm]
+  params: { tolerance_pct: 5 }
+  expression: >
+    abs(float(plot_area_sqm,0) - float(parcel_area_sqm,0))
+    / float(plot_area_sqm,1) * 100 <= tolerance_pct
+  message_en: "Recorded area ({plot_area_sqm} m²) differs from the mapped parcel ({parcel_area_sqm} m²) by more than {tolerance_pct}%."
+  message_hi: "अभिलेखित क्षेत्रफल मानचित्र के क्षेत्रफल से {tolerance_pct}% से अधिक भिन्न है।"
+  fix_hint: "Verify the area on the document, or request a re-survey of the parcel boundary."
+  affected_fields: [plot_area, parcel_geometry]
+
+- id: GEOM_VALID_POLYGON
+  name: Parcel geometry is topologically valid
+  category: geometry
+  severity: ERROR
+  order: 61
+  requires: [parcel_geometry_valid]
+  expression: "parcel_geometry_valid == True"
+  message_en: "The parcel polygon is self-intersecting or otherwise invalid."
+  fix_hint: "Re-digitize the parcel boundary in the map editor."
+  affected_fields: [parcel_geometry]
+
+- id: GEOM_INSIDE_VILLAGE
+  name: Parcel lies inside its village boundary
+  category: geometry
+  severity: ERROR
+  order: 62
+  requires: [parcel_inside_village]
+  expression: "parcel_inside_village == True"
+  message_en: "The parcel falls outside the boundary of village '{village}'."
+  fix_hint: "Check the georeferencing of the map sheet, or the village assignment."
+  affected_fields: [parcel_geometry, village]
+
+- id: GEOM_NO_OVERLAP
+  name: Parcel does not overlap a neighbour
+  category: geometry
+  severity: ERROR
+  order: 63
+  requires: [max_neighbour_overlap_pct]
+  params: { max_overlap_pct: 1 }
+  expression: "float(max_neighbour_overlap_pct, 0) <= max_overlap_pct"
+  message_en: "This parcel overlaps a neighbouring parcel by {max_neighbour_overlap_pct}%."
+  fix_hint: "Overlapping parcels are a common source of boundary disputes — resolve before publishing."
+  affected_fields: [parcel_geometry]
+
+- id: GEOM_NO_SLIVER
+  name: Parcel is not a sliver artefact
+  category: geometry
+  severity: WARNING
+  order: 64
+  requires: [parcel_area_sqm]
+  expression: "float(parcel_area_sqm, 0) >= 10"
+  message_en: "Parcel area of {parcel_area_sqm} m² suggests a digitizing sliver rather than a real plot."
+  affected_fields: [parcel_geometry]
+
+- id: GEOM_LINKED_TO_PARCEL
+  name: Record is linked to a mapped parcel
+  category: geometry
+  severity: REVIEW
+  order: 65
+  requires: [has_parcel_link]
+  expression: "has_parcel_link == True"
+  message_en: "No cadastral parcel is linked to this record."
+  fix_hint: "Orphan records are tracked on the Mapping worklist for field survey."
+  affected_fields: [parcel_geometry]
+
+# ── 7. Date and chronology ─────────────────────────────────────────
+- id: DATE_MUTATION_NOT_FUTURE
+  name: Mutation date is not in the future
+  category: consistency
+  severity: ERROR
+  order: 70
+  requires: [mutation_date]
+  expression: "parse_date(mutation_date) <= today()"
+  message_en: "Mutation date {mutation_date} is in the future."
+  affected_fields: [mutation_date]
+
+- id: DATE_REGISTRATION_NOT_FUTURE
+  name: Registration date is not in the future
+  category: consistency
+  severity: ERROR
+  order: 71
+  requires: [registration_date]
+  expression: "parse_date(registration_date) <= today()"
+  message_en: "Registration date {registration_date} is in the future."
+  affected_fields: [registration_date]
+
+- id: DATE_MUTATION_AFTER_REGISTRATION
+  name: Mutation follows registration
+  category: consistency
+  severity: WARNING
+  order: 72
+  requires: [mutation_date, registration_date]
+  expression: "parse_date(mutation_date) >= parse_date(registration_date)"
+  message_en: "Mutation ({mutation_date}) is dated before registration ({registration_date})."
+  fix_hint: "A mutation normally follows the registered transfer it records."
+  affected_fields: [mutation_date, registration_date]
+
+- id: DATE_WITHIN_RECORD_YEAR
+  name: Dates fall within the record year
+  category: consistency
+  severity: WARNING
+  order: 73
+  requires: [mutation_date, record_year]
+  expression: "abs(parse_date(mutation_date).year - int(record_year,0)) <= 5"
+  message_en: "Mutation date {mutation_date} is far from the record year {record_year}."
+  affected_fields: [mutation_date, record_year]
+
+# ── 8. Confidence gates ────────────────────────────────────────────
+- id: CONF_MANDATORY_FIELDS
+  name: Mandatory fields meet the confidence threshold
+  category: confidence
+  severity: REVIEW
+  order: 80
+  requires: [min_mandatory_confidence]
+  params: { threshold: 0.85 }
+  expression: "float(min_mandatory_confidence, 0) >= threshold"
+  message_en: "A mandatory field is only {min_mandatory_confidence} confident, below the {threshold} threshold."
+  fix_hint: "Compare the highlighted region against the field value."
+  affected_fields: [survey_number, owner_name, plot_area]
+
+- id: CONF_OWNER_NAME
+  name: Owner name confidence
+  category: confidence
+  severity: REVIEW
+  order: 81
+  requires: [owner_name_confidence]
+  params: { threshold: 0.85 }
+  expression: "float(owner_name_confidence, 0) >= threshold"
+  message_en: "Owner name confidence is {owner_name_confidence}, below the {threshold} threshold."
+  fix_hint: "Handwritten names in Devanagari are the most common source of low confidence."
+  affected_fields: [owner_name]
+
+- id: CONF_ENGINE_AGREEMENT
+  name: OCR engines agree
+  category: confidence
+  severity: REVIEW
+  order: 82
+  requires: [engine_agreement]
+  expression: "float(engine_agreement, 1) >= 0.8"
+  message_en: "The OCR engines disagreed on this page (agreement {engine_agreement})."
+  fix_hint: "Disagreement usually indicates faded ink or an unusual script."
+
+- id: CONF_PAGE_QUALITY
+  name: Source page quality is adequate
+  category: confidence
+  severity: WARNING
+  order: 83
+  requires: [page_quality_score]
+  params: { min_quality: 35 }
+  expression: "int(page_quality_score, 0) >= min_quality"
+  message_en: "Source page quality is {page_quality_score}/100 — below the usable threshold."
+  fix_hint: "Rescan at 300 DPI with even lighting."
+
+# ── 9. Duplicate detection ─────────────────────────────────────────
+- id: DUP_EXACT_KEY
+  name: No existing record for this parcel and year
+  category: duplicate
+  severity: BLOCKING
+  order: 90
+  requires: [exact_duplicate_count]
+  expression: "int(exact_duplicate_count, 0) == 0"
+  message_en: "A verified record already exists for survey number {survey_number} in {village} for {record_year}."
+  message_hi: "इस भूखंड हेतु {record_year} का सत्यापित अभिलेख पहले से मौजूद है।"
+  fix_hint: "Open the duplicate resolution screen to merge or keep both."
+  affected_fields: [survey_number, record_year]
+
+- id: DUP_FUZZY_OWNER
+  name: No near-duplicate by owner and parcel
+  category: duplicate
+  severity: REVIEW
+  order: 91
+  requires: [fuzzy_duplicate_score]
+  params: { threshold: 0.85 }
+  expression: "float(fuzzy_duplicate_score, 0) < threshold"
+  message_en: "A very similar record exists (similarity {fuzzy_duplicate_score})."
+  fix_hint: "Compare the two records side by side before approving."
+
+- id: DUP_CONTENT_HASH
+  name: Source scan not already ingested
+  category: duplicate
+  severity: WARNING
+  order: 92
+  requires: [content_duplicate_count]
+  expression: "int(content_duplicate_count, 0) == 0"
+  message_en: "This exact scan has already been ingested."
+
+# ── 10. Chain of title ─────────────────────────────────────────────
+- id: CHAIN_MUTATION_HAS_PRIOR
+  name: Mutation has a prior owner record
+  category: chain_of_title
+  severity: WARNING
+  order: 100
+  requires: [has_prior_record]
+  expression: "has_prior_record == True"
+  message_en: "This mutation has no preceding ownership record in the system."
+  fix_hint: "Digitize the prior year's record to complete the chain of title."
+  affected_fields: [mutation_number]
+
+- id: CHAIN_OWNER_CONTINUITY
+  name: Ownership change is explained
+  category: chain_of_title
+  severity: REVIEW
+  order: 101
+  requires: [owner_changed, has_mutation_reference]
+  expression: "not owner_changed or has_mutation_reference == True"
+  message_en: "Ownership changed since the previous record with no mutation reference."
+  fix_hint: "An unexplained ownership change is a fraud signal — verify against the registry."
+  affected_fields: [owner_name, mutation_number]
+
+# ── 11. Cross-database verification ────────────────────────────────
+- id: XDB_LRMS_MATCH
+  name: Matches the state LRMS record
+  category: cross_database
+  severity: WARNING
+  order: 110
+  requires: [lrms_match_score]
+  expression: "float(lrms_match_score, 1) >= 0.8"
+  message_en: "This record differs from the state LRMS entry (match {lrms_match_score})."
+  fix_hint: "Review the differences on the Integrations sync detail."
+
+- id: XDB_REGISTRY_MATCH
+  name: Registration matches the registry
+  category: cross_database
+  severity: WARNING
+  order: 111
+  requires: [registry_match]
+  expression: "registry_match != False"
+  message_en: "Registration number {registration_number} was not found in the registration department records."
+  affected_fields: [registration_number]
+
+- id: XDB_ENCUMBRANCE_CONSISTENT
+  name: Encumbrance status is consistent
+  category: cross_database
+  severity: WARNING
+  order: 112
+  requires: [encumbrance_consistent]
+  expression: "encumbrance_consistent != False"
+  message_en: "The recorded encumbrance status disagrees with the external registry."
+  affected_fields: [encumbrance]
+
+# ── 12. Anomaly and fraud signals ──────────────────────────────────
+- id: ANOM_AREA_CHANGE
+  name: Area stable across years
+  category: anomaly
+  severity: REVIEW
+  order: 120
+  requires: [area_change_pct_vs_prior]
+  params: { max_change_pct: 20 }
+  expression: "abs(float(area_change_pct_vs_prior, 0)) <= max_change_pct"
+  message_en: "Parcel area changed by {area_change_pct_vs_prior}% since the previous record."
+  fix_hint: "Large area changes without a recorded sub-division warrant a field check."
+  affected_fields: [plot_area]
+
+- id: ANOM_RAPID_TRANSFERS
+  name: Ownership transfer frequency
+  category: anomaly
+  severity: REVIEW
+  order: 121
+  requires: [transfers_last_12_months]
+  params: { max_transfers: 3 }
+  expression: "int(transfers_last_12_months, 0) < max_transfers"
+  message_en: "This parcel changed hands {transfers_last_12_months} times in twelve months."
+  fix_hint: "Rapid successive transfers are a recognised benami indicator."
+
+- id: ANOM_OWNER_PARCEL_COUNT
+  name: Holdings per owner plausible
+  category: anomaly
+  severity: REVIEW
+  order: 122
+  requires: [owner_parcel_count]
+  params: { max_parcels: 200 }
+  expression: "int(owner_parcel_count, 0) <= max_parcels"
+  message_en: "'{owner_name}' is recorded against {owner_parcel_count} parcels."
+  fix_hint: "May be a genuine institution, or a name-normalization error merging distinct people."
+  affected_fields: [owner_name]
+
+- id: ANOM_GOVT_LAND_PRIVATE_OWNER
+  name: Government land not privately held
+  category: anomaly
+  severity: REVIEW
+  order: 123
+  requires: [land_classification, owner_category]
+  expression: "not (land_classification == 'GOVERNMENT' and owner_category == 'INDIVIDUAL')"
+  message_en: "Land classified as government is recorded against an individual owner."
+  fix_hint: "Potential encroachment — escalate to the district office."
+  affected_fields: [land_classification, owner_category]
+
+- id: ANOM_FOREST_LAND_TRANSFER
+  name: Forest land transfer flagged
+  category: anomaly
+  severity: REVIEW
+  order: 124
+  requires: [land_classification, mutation_number]
+  expression: "not (land_classification == 'FOREST' and not_blank(mutation_number))"
+  message_en: "A mutation is recorded against forest-classified land."
+  fix_hint: "Transfers of forest land require separate statutory clearance."
+  affected_fields: [land_classification, mutation_number]
+
+# ── 13. Document integrity ─────────────────────────────────────────
+- id: DOC_TYPE_IDENTIFIED
+  name: Document type identified
+  category: document
+  severity: WARNING
+  order: 130
+  requires: [document_type]
+  expression: "document_type != 'UNKNOWN'"
+  message_en: "The document type could not be identified with confidence."
+  fix_hint: "Set the type manually so the correct extraction template is applied."
+  affected_fields: [document_type]
+
+- id: DOC_LANGUAGE_MATCHES_STATE
+  name: Language consistent with the state
+  category: document
+  severity: INFO
+  order: 131
+  requires: [source_language, expected_state_language]
+  expression: "source_language == expected_state_language or source_language == 'eng'"
+  message_en: "Document language '{source_language}' is unusual for this state."
+  affected_fields: [source_language]
+
+- id: DOC_NOT_HEAVILY_DAMAGED
+  name: Damaged area within tolerance
+  category: document
+  severity: WARNING
+  order: 132
+  requires: [damaged_area_pct]
+  params: { max_damaged_pct: 15 }
+  expression: "float(damaged_area_pct, 0) <= max_damaged_pct"
+  message_en: "{damaged_area_pct}% of the page is damaged or illegible."
+  fix_hint: "Consider sourcing an alternative copy from the record room."
+
+- id: DOC_HAS_SEAL_OR_SIGNATURE
+  name: Official attestation present
+  category: document
+  severity: INFO
+  order: 133
+  requires: [has_seal_or_signature]
+  expression: "has_seal_or_signature == True"
+  message_en: "No official seal or signature was detected on this record."
+  fix_hint: "Unattested extracts may not be admissible — note this on the record."

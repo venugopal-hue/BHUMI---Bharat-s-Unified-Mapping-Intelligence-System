@@ -1,0 +1,54 @@
+# ── Web framework ───────────────────────────────────────────────────
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+strawberry-graphql[fastapi]==0.256.0
+sse-starlette==2.2.1
+
+# ── Data / ORM ──────────────────────────────────────────────────────
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+psycopg[binary]==3.2.3
+alembic==1.14.0
+geoalchemy2==0.16.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+
+# ── Auth / security ─────────────────────────────────────────────────
+passlib[argon2]==1.7.4
+argon2-cffi==23.1.0
+pyjwt==2.10.1
+pyotp==2.9.0
+cryptography==44.0.0
+
+# ── Infrastructure ──────────────────────────────────────────────────
+redis==5.2.1
+celery==5.4.0
+boto3==1.35.90
+httpx==0.28.1
+tenacity==9.0.0
+
+# ── Documents / imaging (shared with worker) ────────────────────────
+pillow==11.0.0
+pypdf==5.1.0
+pdf2image==1.17.0
+numpy==2.2.1
+
+# ── Geo ─────────────────────────────────────────────────────────────
+shapely==2.0.6
+pyproj==3.7.0
+
+# ── Utilities ───────────────────────────────────────────────────────
+python-dateutil==2.9.0.post0
+orjson==3.10.13
+structlog==24.4.0
+rapidfuzz==3.11.0
+PyYAML==6.0.2
+jinja2==3.1.5
+email-validator==2.2.0
+
+# ── Dev / test ──────────────────────────────────────────────────────
+pytest==8.3.4
+pytest-asyncio==0.25.0
+ruff==0.8.4
+mypy==1.14.0
