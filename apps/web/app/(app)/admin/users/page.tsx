@@ -246,7 +246,7 @@ export default function AdminUsersPage() {
         }
       />
 
-      {/* Page tab switcher */}
+      {/* Page tab switcher — Officers | Change Requests */}
       <div className="flex gap-1 mb-5 border-b border-line">
         {([
           { key: "users",           label: "Officers",        badge: null },
