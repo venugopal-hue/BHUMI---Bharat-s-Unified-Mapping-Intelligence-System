@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import uuid
 
-from geoalchemy2 import Geometry
-from sqlalchemy import ForeignKey, Index, Integer, String, UniqueConstraint
+from sqlalchemy import ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -26,7 +25,7 @@ class State(Base, UUIDMixin, TimestampMixin):
     iso_code: Mapped[str | None] = mapped_column(String(8))
     default_language: Mapped[str | None] = mapped_column(String(8))
     geom: Mapped[object | None] = mapped_column(
-        Geometry("MULTIPOLYGON", srid=4326, spatial_index=True)
+        Text, nullable=True
     )
 
     districts: Mapped[list["District"]] = relationship(back_populates="state")
@@ -46,7 +45,7 @@ class District(Base, UUIDMixin, TimestampMixin):
     name_en: Mapped[str] = mapped_column(String(128))
     name_local: Mapped[str | None] = mapped_column(String(128))
     geom: Mapped[object | None] = mapped_column(
-        Geometry("MULTIPOLYGON", srid=4326, spatial_index=True)
+        Text, nullable=True
     )
 
     state: Mapped[State] = relationship(back_populates="districts")
@@ -69,7 +68,7 @@ class Tehsil(Base, UUIDMixin, TimestampMixin):
     name_en: Mapped[str] = mapped_column(String(128))
     name_local: Mapped[str | None] = mapped_column(String(128))
     geom: Mapped[object | None] = mapped_column(
-        Geometry("MULTIPOLYGON", srid=4326, spatial_index=True)
+        Text, nullable=True
     )
 
     district: Mapped[District] = relationship(back_populates="tehsils")
@@ -96,7 +95,7 @@ class Village(Base, UUIDMixin, TimestampMixin):
     pin_code: Mapped[str | None] = mapped_column(String(8))
     total_parcels_estimate: Mapped[int | None] = mapped_column(Integer)
     geom: Mapped[object | None] = mapped_column(
-        Geometry("MULTIPOLYGON", srid=4326, spatial_index=True)
+        Text, nullable=True
     )
 
     tehsil: Mapped[Tehsil] = relationship(back_populates="villages")

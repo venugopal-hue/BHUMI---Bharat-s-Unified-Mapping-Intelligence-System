@@ -5,7 +5,6 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from geoalchemy2 import Geometry
 from sqlalchemy import (
     Boolean,
     DateTime,
@@ -31,7 +30,6 @@ class Parcel(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "parcels"
     __table_args__ = (
         Index("ix_parcels_village_survey", "village_id", "survey_number"),
-        Index("ix_parcels_geom", "geom", postgresql_using="gist"),
     )
 
     village_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -45,8 +43,8 @@ class Parcel(Base, UUIDMixin, TimestampMixin):
     khasra_number: Mapped[str | None] = mapped_column(String(64), index=True)
     sub_division: Mapped[str | None] = mapped_column(String(64))
 
-    geom: Mapped[object] = mapped_column(Geometry("MULTIPOLYGON", srid=4326))
-    centroid: Mapped[object | None] = mapped_column(Geometry("POINT", srid=4326))
+    geom: Mapped[str | None] = mapped_column(Text)
+    centroid: Mapped[str | None] = mapped_column(Text)
     area_sqm: Mapped[float | None] = mapped_column(Numeric(16, 2))
     perimeter_m: Mapped[float | None] = mapped_column(Numeric(16, 2))
 
@@ -82,7 +80,7 @@ class MapSheet(Base, UUIDMixin, TimestampMixin):
     transform_type: Mapped[str | None] = mapped_column(String(24))
     srid: Mapped[int | None] = mapped_column(Integer)
     rms_error_m: Mapped[float | None] = mapped_column(Float)
-    bounds: Mapped[object | None] = mapped_column(Geometry("POLYGON", srid=4326))
+    bounds: Mapped[str | None] = mapped_column(Text)
 
     status: Mapped[str] = mapped_column(String(24), default="UPLOADED", index=True)
     parcels_extracted: Mapped[int] = mapped_column(Integer, default=0)
