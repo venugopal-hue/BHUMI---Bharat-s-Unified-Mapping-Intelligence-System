@@ -210,6 +210,16 @@ export const authApi = {
   },
   changePassword: (current_password: string, new_password: string) =>
     post<void>("/auth/change-password", { current_password, new_password }),
+  updateProfile: (data: { full_name?: string; email?: string }) =>
+    patch<User>("/auth/me", data),
+  sessions: () =>
+    get<{
+      login_at: string; logout_at: string | null; duration_s: number | null;
+      ip: string; device: string; device_type: "desktop" | "mobile";
+      status: "ACTIVE" | "CLOSED" | "FAILED"; close_reason?: string;
+    }[]>("/auth/sessions"),
+  revokeOtherSessions: () =>
+    request<void>("/auth/sessions", { method: "DELETE" }),
 };
 
 /* ── Intake ──────────────────────────────────────────────────────── */
@@ -418,6 +428,38 @@ export const notificationsApi = {
     post<{ message_id: string; status: string }>("/notifications/push", payload),
   dispatchLog: (_query?: RequestOptions["query"]) =>
     get<{ total: number; delivered: number; failed: number; pending: number; last_24h: number }>("/notifications/dispatch-log", _query),
+};
+
+export const usersApi = {
+  changeRequest: (field: string, reason: string) =>
+    post<{ id: string; status: string }>("/users/change-request", { field, reason }),
+};
+
+export interface AdminUser {
+  id: string;
+  username: string;
+  full_name: string;
+  email: string;
+  designation: string;
+  domain: "platform" | "government";
+  roles: string[];
+  permissions: string[];
+  jurisdictions: { level: string; code: string; label: string }[];
+  status: "pending" | "active" | "suspended" | "rejected";
+  created_at: string;
+  approved_at?: string | null;
+  approved_by?: string | null;
+}
+
+export const adminApi = {
+  listUsers: (query?: RequestOptions["query"]) =>
+    get<AdminUser[]>("/users", query),
+  updateUserStatus: (id: string, status: AdminUser["status"]) =>
+    patch<AdminUser>(`/users/${id}/status`, { status }),
+  updateUserRole: (id: string, designation: string) =>
+    patch<AdminUser>(`/users/${id}/role`, { designation }),
+  inviteUser: (payload: { full_name: string; email: string; role: string; state?: string; district?: string }) =>
+    post<{ id: string; status: string }>("/users/invite", payload),
 };
 
 export const publicApi = {

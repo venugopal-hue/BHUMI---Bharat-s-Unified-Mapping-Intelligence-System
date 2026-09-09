@@ -2,19 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  collection, getDocs, doc, updateDoc, serverTimestamp, query, orderBy,
-} from "firebase/firestore";
-import {
   CheckCircle2, Clock, XCircle, RefreshCw, ShieldCheck, User, Building2, Shield, Search, X, UserPlus,
 } from "lucide-react";
 
 import { Card, EmptyState, PageHeader, SkeletonRows } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/Toast";
-import { db } from "@/lib/firebase";
-import { useAuth, ROLE_MAP, Perm, type BhumiProfile } from "@/lib/auth";
+import { useAuth, ROLE_MAP, Perm } from "@/lib/auth";
+import { adminApi, type AdminUser } from "@/lib/api";
 import { Can } from "@/components/rbac/Can";
 
-const STATUS_CHIP: Record<BhumiProfile["status"], { label: string; cls: string }> = {
+const STATUS_CHIP: Record<AdminUser["status"], { label: string; cls: string }> = {
   pending:   { label: "Pending",   cls: "bg-warn/10 text-warn border-warn/30" },
   active:    { label: "Active",    cls: "bg-success/10 text-success border-success/30" },
   suspended: { label: "Suspended", cls: "bg-danger/10 text-danger border-danger/30" },
@@ -26,7 +23,7 @@ const DOMAIN_CHIP: Record<string, string> = {
   government: "bg-surface-2 text-muted border-line",
 };
 
-type FilterStatus = BhumiProfile["status"] | "all";
+type FilterStatus = AdminUser["status"] | "all";
 type FilterDomain = "all" | "platform" | "government";
 
 interface InviteForm {
@@ -48,51 +45,34 @@ function InviteModal({ onClose, onInvite }: { onClose: () => void; onInvite: (fo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="card w-full max-w-md mx-4 shadow-raised">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-line">
-          <h2 className="text-base font-semibold text-ink">Invite user</h2>
-          <button type="button" onClick={onClose} className="text-muted hover:text-ink transition-colors">
-            <X size={18} />
-          </button>
+      <div className="card w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95 duration-150 p-6 space-y-4">
+        <div>
+          <p className="text-sm font-semibold text-ink">Invite officer</p>
+          <p className="text-xs text-muted mt-0.5">They will receive an email with a temporary access link.</p>
         </div>
-        <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-ink mb-1">Full name <span className="text-danger">*</span></label>
-            <input
-              className="input w-full"
-              placeholder="e.g. Rajesh Kumar"
-              value={form.fullName}
-              onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))}
-              required
-            />
+            <label className="block text-xs font-medium text-ink mb-1">Full name</label>
+            <input className="input w-full" placeholder="e.g. Ramesh Sharma" value={form.fullName}
+              onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))} required />
           </div>
           <div>
-            <label className="block text-xs font-medium text-ink mb-1">Email <span className="text-danger">*</span></label>
-            <input
-              type="email"
-              className="input w-full"
-              placeholder="officer@example.gov.in"
-              value={form.email}
-              onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-              required
-            />
+            <label className="block text-xs font-medium text-ink mb-1">Government email</label>
+            <input type="email" className="input w-full" placeholder="officer@gov.in" value={form.email}
+              onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} required />
           </div>
           <div>
-            <label className="block text-xs font-medium text-ink mb-1">Role <span className="text-danger">*</span></label>
-            <select
-              className="input w-full"
-              value={form.role}
-              onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))}
-              required
-            >
-              <option value="">Select a role…</option>
-              <optgroup label="Platform Team">
-                {Object.values(ROLE_MAP).filter(r => r.domain === "platform").map(r => (
+            <label className="block text-xs font-medium text-ink mb-1">Role</label>
+            <select className="input w-full" value={form.role}
+              onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))} required>
+              <option value="">Select role…</option>
+              <optgroup label="Government Officers">
+                {Object.values(ROLE_MAP).filter(r => r.domain === "government").map(r => (
                   <option key={r.value} value={r.value}>{r.label}</option>
                 ))}
               </optgroup>
-              <optgroup label="Government Officers">
-                {Object.values(ROLE_MAP).filter(r => r.domain === "government").map(r => (
+              <optgroup label="Platform Team">
+                {Object.values(ROLE_MAP).filter(r => r.domain === "platform").map(r => (
                   <option key={r.value} value={r.value}>{r.label}</option>
                 ))}
               </optgroup>
@@ -101,21 +81,13 @@ function InviteModal({ onClose, onInvite }: { onClose: () => void; onInvite: (fo
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-ink mb-1">State</label>
-              <input
-                className="input w-full"
-                placeholder="e.g. Rajasthan"
-                value={form.state}
-                onChange={(e) => setForm((p) => ({ ...p, state: e.target.value }))}
-              />
+              <input className="input w-full" placeholder="e.g. Rajasthan"
+                value={form.state} onChange={(e) => setForm((p) => ({ ...p, state: e.target.value }))} />
             </div>
             <div>
               <label className="block text-xs font-medium text-ink mb-1">District</label>
-              <input
-                className="input w-full"
-                placeholder="e.g. Jaipur"
-                value={form.district}
-                onChange={(e) => setForm((p) => ({ ...p, district: e.target.value }))}
-              />
+              <input className="input w-full" placeholder="e.g. Jaipur"
+                value={form.district} onChange={(e) => setForm((p) => ({ ...p, district: e.target.value }))} />
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
@@ -132,7 +104,7 @@ export default function AdminUsersPage() {
   const toast = useToast();
   const { user } = useAuth();
 
-  const [profiles, setProfiles]           = useState<BhumiProfile[]>([]);
+  const [profiles, setProfiles]           = useState<AdminUser[]>([]);
   const [loading, setLoading]             = useState(true);
   const [filterStatus, setFilterStatus]   = useState<FilterStatus>("all");
   const [filterDomain, setFilterDomain]   = useState<FilterDomain>("all");
@@ -144,10 +116,10 @@ export default function AdminUsersPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(query(collection(db, "bhumi_users"), orderBy("createdAt", "desc")));
-      setProfiles(snap.docs.map((d) => d.data() as BhumiProfile));
+      const data = await adminApi.listUsers();
+      setProfiles(data);
     } catch {
-      toast.error("Could not load users", "Check your Firebase connection.");
+      toast.error("Could not load users", "Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -155,15 +127,11 @@ export default function AdminUsersPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const updateStatus = async (uid: string, status: BhumiProfile["status"]) => {
-    setActing(uid);
+  const updateStatus = async (id: string, status: AdminUser["status"]) => {
+    setActing(id);
     try {
-      await updateDoc(doc(db, "bhumi_users", uid), {
-        status,
-        approvedAt: serverTimestamp(),
-        approvedBy: user?.full_name ?? "admin",
-      });
-      setProfiles((prev) => prev.map((p) => p.uid === uid ? { ...p, status } : p));
+      const updated = await adminApi.updateUserStatus(id, status);
+      setProfiles((prev) => prev.map((p) => p.id === id ? updated : p));
       toast.success(
         status === "active" ? "Account activated"
           : status === "rejected" ? "Registration rejected"
@@ -177,23 +145,13 @@ export default function AdminUsersPage() {
     }
   };
 
-  const updateRole = async (uid: string, designation: string) => {
+  const updateRole = async (id: string, designation: string) => {
     const roleDef = ROLE_MAP[designation];
     if (!roleDef) return;
-    setActing(uid);
+    setActing(id);
     try {
-      await updateDoc(doc(db, "bhumi_users", uid), {
-        designation,
-        domain: roleDef.domain,
-        permissions: roleDef.permissions,
-      });
-      setProfiles((prev) =>
-        prev.map((p) =>
-          p.uid === uid
-            ? { ...p, designation, domain: roleDef.domain, permissions: roleDef.permissions }
-            : p,
-        ),
-      );
+      const updated = await adminApi.updateUserRole(id, designation);
+      setProfiles((prev) => prev.map((p) => p.id === id ? updated : p));
       toast.success("Role updated", `User assigned to ${roleDef.label}.`);
     } catch {
       toast.error("Action failed", "Could not update user role.");
@@ -203,14 +161,13 @@ export default function AdminUsersPage() {
     }
   };
 
-  const handleInvite = (form: InviteForm) => {
-    // Store pending invite in localStorage until backend email API is wired
+  const handleInvite = async (form: InviteForm) => {
     try {
-      const prev = JSON.parse(localStorage.getItem("bhumi.pending_invites") ?? "[]");
-      prev.push({ ...form, at: new Date().toISOString(), status: "pending" });
-      localStorage.setItem("bhumi.pending_invites", JSON.stringify(prev));
-    } catch { /* storage unavailable */ }
-    toast.success("Invite queued", `${form.email} will receive an invitation once the email service is connected.`);
+      await adminApi.inviteUser({ full_name: form.fullName, email: form.email, role: form.role, state: form.state, district: form.district });
+      toast.success("Invitation sent", `${form.email} will receive an access link.`);
+    } catch {
+      toast.error("Invite failed", "Could not send invitation. Check your connection.");
+    }
     setShowInvite(false);
   };
 
@@ -219,7 +176,7 @@ export default function AdminUsersPage() {
     if (filterDomain !== "all" && p.domain !== filterDomain) return false;
     if (search) {
       const q = search.toLowerCase();
-      if (!p.fullName?.toLowerCase().includes(q) && !p.email?.toLowerCase().includes(q)) return false;
+      if (!p.full_name?.toLowerCase().includes(q) && !p.email?.toLowerCase().includes(q)) return false;
     }
     return true;
   });
@@ -269,7 +226,6 @@ export default function AdminUsersPage() {
 
       {/* Filters + Search */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        {/* Search */}
         <div className="relative">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
           <input
@@ -279,11 +235,8 @@ export default function AdminUsersPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
           {search && (
-            <button
-              type="button"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
-              onClick={() => setSearch("")}
-            >
+            <button type="button" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
+              onClick={() => setSearch("")}>
               <X size={13} />
             </button>
           )}
@@ -291,7 +244,6 @@ export default function AdminUsersPage() {
 
         <div className="h-4 w-px bg-line" />
 
-        {/* Status filter */}
         <div className="flex flex-wrap gap-1.5">
           {(["all", "pending", "active", "suspended", "rejected"] as FilterStatus[]).map((s) => {
             const count = s === "all" ? profiles.length : profiles.filter((p) => p.status === s).length;
@@ -317,7 +269,6 @@ export default function AdminUsersPage() {
 
         <div className="h-4 w-px bg-line" />
 
-        {/* Domain filter */}
         <div className="flex gap-1.5">
           {(["all", "government", "platform"] as FilterDomain[]).map((d) => (
             <button
@@ -359,12 +310,11 @@ export default function AdminUsersPage() {
                 {shown.map((p) => {
                   const chip     = STATUS_CHIP[p.status];
                   const roleDef  = ROLE_MAP[p.designation];
-                  const isActing = acting === p.uid;
-                  const isMe     = p.uid === user?.id;
+                  const isActing = acting === p.id;
+                  const isMe     = p.id === user?.id;
 
                   return (
-                    <tr key={p.uid} className={`hover:bg-surface-2 ${isMe ? "bg-primary/5" : ""}`}>
-                      {/* Officer */}
+                    <tr key={p.id} className={`hover:bg-surface-2 ${isMe ? "bg-primary/5" : ""}`}>
                       <td className="table-cell">
                         <div className="flex items-center gap-2.5">
                           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -372,7 +322,7 @@ export default function AdminUsersPage() {
                           </span>
                           <div>
                             <p className="text-sm font-semibold text-ink">
-                              {p.fullName}
+                              {p.full_name}
                               {isMe && <span className="ml-1.5 text-2xs text-primary font-normal">(you)</span>}
                             </p>
                             <p className="text-2xs text-muted">{p.email}</p>
@@ -380,10 +330,8 @@ export default function AdminUsersPage() {
                         </div>
                       </td>
 
-                      {/* Code */}
-                      <td className="table-cell font-mono text-xs text-muted">{p.employeeCode || "—"}</td>
+                      <td className="table-cell font-mono text-xs text-muted">{p.username || "—"}</td>
 
-                      {/* Domain */}
                       <td className="table-cell">
                         <span className={`pill border text-2xs font-semibold ${DOMAIN_CHIP[p.domain ?? "government"]}`}>
                           {p.domain === "platform"
@@ -393,18 +341,14 @@ export default function AdminUsersPage() {
                         </span>
                       </td>
 
-                      {/* Role */}
                       <td className="table-cell">
-                        {changingRole === p.uid ? (
+                        {changingRole === p.id ? (
                           <select
                             className="input text-xs py-1"
                             defaultValue={p.designation}
                             autoFocus
                             onBlur={() => setChangingRole(null)}
-                            onChange={(e) => {
-                              const newRole = e.target.value;
-                              updateRole(p.uid, newRole);
-                            }}
+                            onChange={(e) => updateRole(p.id, e.target.value)}
                           >
                             <optgroup label="Platform Team">
                               {Object.values(ROLE_MAP).filter(r => r.domain === "platform").map(r => (
@@ -420,74 +364,74 @@ export default function AdminUsersPage() {
                         ) : (
                           <button
                             type="button"
-                            disabled={isMe}
-                            onClick={() => setChangingRole(p.uid)}
-                            className="text-xs text-ink hover:text-primary hover:underline underline-offset-2 disabled:cursor-default disabled:no-underline"
+                            className="text-xs text-ink hover:text-primary hover:underline text-left"
+                            onClick={() => !isMe && setChangingRole(p.id)}
                             title={isMe ? "Cannot change your own role" : "Click to change role"}
+                            disabled={isMe}
                           >
-                            {roleDef?.label ?? p.designation}
+                            {roleDef?.label ?? p.designation ?? "—"}
                           </button>
                         )}
                       </td>
 
-                      {/* Jurisdiction */}
                       <td className="table-cell text-xs text-muted">
-                        {p.district ? `${p.district}, ` : ""}{p.state || "—"}
+                        {p.jurisdictions?.[0]?.label ?? "—"}
                       </td>
 
-                      {/* Status */}
                       <td className="table-cell">
-                        <span className={`pill border text-2xs font-semibold ${chip.cls}`}>{chip.label}</span>
+                        <span className={`pill border text-2xs font-bold ${chip.cls}`}>
+                          {chip.label}
+                        </span>
+                        {p.approved_by && (
+                          <p className="text-2xs text-muted/60 mt-0.5">by {p.approved_by}</p>
+                        )}
                       </td>
 
-                      {/* Actions */}
                       <td className="table-cell">
-                        <div className="flex items-center gap-1.5">
-                          {!isMe && p.status !== "active" && (
-                            <button
-                              type="button"
-                              disabled={isActing}
-                              onClick={() => updateStatus(p.uid, "active")}
-                              className="flex items-center gap-1 rounded border border-success/30 bg-success/10 px-2 py-1 text-2xs font-semibold text-success hover:bg-success/20 disabled:opacity-50"
-                            >
-                              {isActing ? <RefreshCw size={11} className="animate-spin" /> : <CheckCircle2 size={11} />}
-                              Approve
-                            </button>
-                          )}
-                          {!isMe && p.status === "pending" && (
-                            <button
-                              type="button"
-                              disabled={isActing}
-                              onClick={() => updateStatus(p.uid, "rejected")}
-                              className="flex items-center gap-1 rounded border border-danger/30 bg-danger/10 px-2 py-1 text-2xs font-semibold text-danger hover:bg-danger/20 disabled:opacity-50"
-                            >
-                              <XCircle size={11} /> Reject
-                            </button>
-                          )}
-                          {!isMe && p.status === "active" && (
-                            <button
-                              type="button"
-                              disabled={isActing}
-                              onClick={() => updateStatus(p.uid, "suspended")}
-                              className="flex items-center gap-1 rounded border border-line bg-surface-2 px-2 py-1 text-2xs font-semibold text-muted hover:text-danger disabled:opacity-50"
-                            >
-                              <XCircle size={11} /> Suspend
-                            </button>
-                          )}
-                          {!isMe && p.status === "suspended" && (
-                            <button
-                              type="button"
-                              disabled={isActing}
-                              onClick={() => updateStatus(p.uid, "active")}
-                              className="flex items-center gap-1 rounded border border-success/30 bg-success/10 px-2 py-1 text-2xs font-semibold text-success hover:bg-success/20 disabled:opacity-50"
-                            >
-                              <ShieldCheck size={11} /> Reinstate
-                            </button>
-                          )}
-                          {isMe && (
-                            <span className="text-2xs text-muted italic">—</span>
-                          )}
-                        </div>
+                        {isActing ? (
+                          <span className="text-xs text-muted italic">Updating…</span>
+                        ) : isMe ? (
+                          <span className="text-xs text-muted italic">—</span>
+                        ) : (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {p.status === "pending" && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="pill border border-success/30 bg-success/10 text-success text-2xs font-semibold hover:bg-success/20"
+                                  onClick={() => updateStatus(p.id, "active")}
+                                >
+                                  <CheckCircle2 size={11} className="inline mr-0.5" /> Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  className="pill border border-danger/30 bg-danger/10 text-danger text-2xs font-semibold hover:bg-danger/20"
+                                  onClick={() => updateStatus(p.id, "rejected")}
+                                >
+                                  <XCircle size={11} className="inline mr-0.5" /> Reject
+                                </button>
+                              </>
+                            )}
+                            {p.status === "active" && (
+                              <button
+                                type="button"
+                                className="pill border border-warn/30 bg-warn/10 text-warn text-2xs font-semibold hover:bg-warn/20"
+                                onClick={() => updateStatus(p.id, "suspended")}
+                              >
+                                Suspend
+                              </button>
+                            )}
+                            {p.status === "suspended" && (
+                              <button
+                                type="button"
+                                className="pill border border-success/30 bg-success/10 text-success text-2xs font-semibold hover:bg-success/20"
+                                onClick={() => updateStatus(p.id, "active")}
+                              >
+                                <ShieldCheck size={11} className="inline mr-0.5" /> Reinstate
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );

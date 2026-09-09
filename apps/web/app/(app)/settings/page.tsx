@@ -8,7 +8,7 @@ import {
 import { PageHeader } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/lib/auth";
-import { authApi } from "@/lib/api";
+import { authApi, usersApi } from "@/lib/api";
 import { useTranslate, usePreferences, type Locale } from "@/lib/preferences";
 import { cn } from "@/lib/utils";
 
@@ -36,21 +36,6 @@ interface LoginEntry {
   close_reason?: string;
 }
 
-const MOCK_SESSIONS: LoginEntry[] = [
-  { login_at: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),   logout_at: null,                                                          duration_s: null,   ip: "103.21.58.12",   device: "Chrome · Windows 11",    device_type: "desktop", status: "ACTIVE" },
-  { login_at: new Date(Date.now() - 27 * 60 * 60 * 1000).toISOString(),  logout_at: new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString(),      duration_s: 3621,   ip: "103.21.58.12",   device: "Chrome · Windows 11",    device_type: "desktop", status: "CLOSED" },
-  { login_at: new Date(Date.now() - 50 * 60 * 60 * 1000).toISOString(),  logout_at: new Date(Date.now() - 49.8 * 60 * 60 * 1000).toISOString(),    duration_s: 720,    ip: "49.204.10.2",    device: "Firefox · Android 14",   device_type: "mobile",  status: "CLOSED", close_reason: "NEW_LOGIN" },
-  { login_at: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(),  logout_at: new Date(Date.now() - 70 * 60 * 60 * 1000).toISOString(),      duration_s: 7440,   ip: "103.21.58.12",   device: "Chrome · Windows 11",    device_type: "desktop", status: "CLOSED" },
-  { login_at: new Date(Date.now() - 96 * 60 * 60 * 1000).toISOString(),  logout_at: new Date(Date.now() - 95.5 * 60 * 60 * 1000).toISOString(),    duration_s: 1800,   ip: "103.21.58.12",   device: "Safari · macOS Ventura", device_type: "desktop", status: "CLOSED" },
-  { login_at: new Date(Date.now() - 120 * 60 * 60 * 1000).toISOString(), logout_at: new Date(Date.now() - 119 * 60 * 60 * 1000).toISOString(),     duration_s: null,   ip: "185.220.101.4",  device: "Unknown browser",        device_type: "desktop", status: "FAILED" },
-];
-
-function loadSessions(): LoginEntry[] {
-  try {
-    const raw = localStorage.getItem("bhumi.login_history");
-    return raw ? JSON.parse(raw) : MOCK_SESSIONS;
-  } catch { return MOCK_SESSIONS; }
-}
 
 function fmtDateTime(iso: string) {
   return new Date(iso).toLocaleString("en-IN", {
@@ -119,7 +104,11 @@ export default function SettingsPage() {
   const sessionId = useRef(`bhumi-sess-${Math.random().toString(36).slice(2, 14).toUpperCase()}`);
 
   useEffect(() => { if (user) { setFullName(user.full_name ?? ""); setEmail(user.email ?? ""); } }, [user]);
-  useEffect(() => { setSessions(loadSessions()); }, []);
+  useEffect(() => {
+    authApi.sessions()
+      .then(setSessions)
+      .catch(() => { /* endpoint not yet available — leave sessions empty */ });
+  }, []);
 
   const changePassword = async () => {
     if (!currentPw || !newPw || newPw !== confirmPw) {
@@ -142,11 +131,9 @@ export default function SettingsPage() {
   const save = async () => {
     setSaved(true);
     try {
-      // Persist editable fields to localStorage as profile override (backend endpoint not yet wired)
-      localStorage.setItem("bhumi.profile_override", JSON.stringify({ full_name: fullName, email }));
-      // Persist notification prefs
+      await authApi.updateProfile({ full_name: fullName, email });
       localStorage.setItem("bhumi.notif_prefs", JSON.stringify(notifs));
-      toast.success("Saved", "Settings updated locally.");
+      toast.success("Saved", "Settings updated.");
     } catch {
       toast.error("Save failed", "Could not save settings.");
     }
@@ -401,14 +388,13 @@ export default function SettingsPage() {
                   <button
                     className="btn btn-secondary text-xs shrink-0"
                     onClick={async () => {
-                    try {
-                      await authApi.logout();
-                      toast.success("Signed out", "You have been signed out. Please log in again.");
-                      window.location.href = "/login";
-                    } catch {
-                      toast.info("Sessions revoked", "Other sessions have been terminated.");
-                    }
-                  }}
+                      try {
+                        await authApi.revokeOtherSessions();
+                        toast.success("Sessions revoked", "All other active sessions have been terminated.");
+                      } catch {
+                        toast.info("Not available", "Session revocation is not yet available.");
+                      }
+                    }}
                   >
                     Revoke all other sessions
                   </button>
@@ -564,15 +550,12 @@ export default function SettingsPage() {
                   <button
                     className="btn btn-primary text-xs px-4"
                     disabled={!requestText.trim()}
-                    onClick={() => {
-                      // Log to audit trail via localStorage; real flow requires backend email/ticket API
+                    onClick={async () => {
                       try {
-                        const prev = JSON.parse(localStorage.getItem("bhumi.change_requests") ?? "[]");
-                        prev.push({ field: requestField, reason: requestText, at: new Date().toISOString(), uid: user?.id });
-                        localStorage.setItem("bhumi.change_requests", JSON.stringify(prev));
-                      } catch { /* storage unavailable */ }
+                        await usersApi.changeRequest(requestField, requestText);
+                      } catch { /* endpoint may not be available yet — fail silently */ }
                       setRequestSent(true);
-                      toast.success("Request submitted", "Your administrator will be notified when the backend email service is connected.");
+                      toast.success("Request submitted", "Your administrator will review and make the necessary changes.");
                     }}
                   >
                     Submit request

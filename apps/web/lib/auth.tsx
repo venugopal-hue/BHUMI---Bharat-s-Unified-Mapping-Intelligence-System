@@ -10,16 +10,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut,
-  type User as FirebaseUser,
-} from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
-import { auth, db } from "./firebase";
+import { authApi, tokens, ApiError } from "./api";
 import type { User } from "./types";
 
 /* ─────────────────────────────────────────────────────────
@@ -80,13 +72,6 @@ export const Perm = {
 } as const;
 
 const ALL_PERMS = Object.values(Perm);
-
-const GOVT_READ_PERMS = [
-  Perm.DOCUMENT_READ, Perm.RECORD_READ, Perm.RECORD_EXPORT,
-  Perm.GIS_READ, Perm.INSIGHTS_READ, Perm.INSIGHTS_OPERATIONS,
-  Perm.RULES_READ, Perm.INTEGRATION_READ, Perm.USER_READ,
-  Perm.AUDIT_READ, Perm.AUDIT_FULL, Perm.MODEL_READ,
-];
 
 /* ─────────────────────────────────────────────────────────
    Role definitions — two domains
@@ -261,225 +246,88 @@ export const ROLES: RoleDef[] = [
 ];
 
 export const ROLE_MAP = Object.fromEntries(ROLES.map((r) => [r.value, r]));
-
 export const PLATFORM_ROLES = ROLES.filter((r) => r.domain === "platform");
 export const GOVT_ROLES     = ROLES.filter((r) => r.domain === "government");
-
-/* ─────────────────────────────────────────────────────────
-   Firestore profile
-───────────────────────────────────────────────────────── */
-export interface BhumiProfile {
-  uid: string;
-  email: string;
-  fullName: string;
-  employeeCode: string;
-  designation: string;
-  domain: RoleDomain;
-  department: string;
-  state: string;
-  district: string;
-  mobile: string;
-  status: "pending" | "active" | "suspended" | "rejected";
-  permissions: string[];
-  createdAt: unknown;
-  approvedAt?: unknown;
-  approvedBy?: string;
-}
-
-async function fetchProfile(uid: string): Promise<BhumiProfile | null> {
-  try {
-    const snap = await getDoc(doc(db, "bhumi_users", uid));
-    return snap.exists() ? (snap.data() as BhumiProfile) : null;
-  } catch {
-    return null;
-  }
-}
 
 /* ─────────────────────────────────────────────────────────
    Context
 ───────────────────────────────────────────────────────── */
 interface AuthState {
   user: User | null;
-  profile: BhumiProfile | null;
   loading: boolean;
   error: string | null;
-  login: (email: string, password: string) => Promise<boolean>;
-  register: (data: RegisterData) => Promise<boolean>;
+  mfaRequired: boolean;
+  login: (username: string, password: string, mfa_code?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   can: (...permissions: string[]) => boolean;
   hasRole: (...roles: string[]) => boolean;
   refresh: () => Promise<void>;
 }
 
-export interface RegisterData {
-  fullName: string;
-  employeeCode: string;
-  email: string;
-  mobile: string;
-  designation: string;
-  domain: RoleDomain;
-  department: string;
-  state: string;
-  district: string;
-  password: string;
-}
-
 const AuthContext = createContext<AuthState | null>(null);
-
-function firebaseUserToUser(fb: FirebaseUser, profile: BhumiProfile): User {
-  const roleDef = ROLE_MAP[profile.designation];
-  const perms = profile.permissions?.length
-    ? profile.permissions
-    : roleDef?.permissions ?? [];
-  return {
-    id: fb.uid,
-    username: profile.employeeCode,
-    full_name: profile.fullName,
-    email: profile.email,
-    preferred_locale: "en",
-    roles: [profile.designation],
-    permissions: perms,
-    mfa_enabled: false,
-    jurisdictions: profile.district
-      ? [{ level: "DISTRICT" as const, ref_id: null, label: profile.district }]
-      : [],
-  };
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const [fbUser, setFbUser]   = useState<FirebaseUser | null>(null);
-  const [profile, setProfile] = useState<BhumiProfile | null>(null);
-  const [user, setUser]       = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string | null>(null);
+  const [user, setUser]         = useState<User | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState<string | null>(null);
+  const [mfaRequired, setMfaRequired] = useState(false);
 
-  const loadProfile = useCallback(async (fb: FirebaseUser) => {
-    const p = await fetchProfile(fb.uid);
-    if (p && p.status === "active") {
-      setProfile(p);
-      setUser(firebaseUserToUser(fb, p));
-    } else {
-      setProfile(p);
-      setUser(null);
+  // On mount, if we have a stored token, hydrate the user profile.
+  useEffect(() => {
+    if (!tokens.access()) {
+      setLoading(false);
+      return;
     }
+    authApi.me()
+      .then(setUser)
+      .catch(() => { tokens.clear(); setUser(null); })
+      .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (fb) => {
-      setFbUser(fb);
-      if (fb) {
-        await loadProfile(fb);
-      } else {
-        setProfile(null);
-        setUser(null);
-      }
-      setLoading(false);
-    });
-    return unsub;
-  }, [loadProfile]);
-
-  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (username: string, password: string, mfa_code?: string): Promise<boolean> => {
     setError(null);
+    setMfaRequired(false);
     setLoading(true);
     try {
-      const cred = await signInWithEmailAndPassword(auth, email, password);
-      const p = await fetchProfile(cred.user.uid);
-      if (!p) {
-        await signOut(auth);
-        setError("Account not found. Please register first.");
-        setLoading(false);
-        return false;
-      }
-      if (p.status === "pending") {
-        await signOut(auth);
-        setError("Your account is pending admin approval. You will be notified by email once activated.");
-        setLoading(false);
-        return false;
-      }
-      if (p.status === "rejected") {
-        await signOut(auth);
-        setError("Your registration was not approved. Contact your administrator.");
-        setLoading(false);
-        return false;
-      }
-      if (p.status === "suspended") {
-        await signOut(auth);
-        setError("This account has been suspended. Contact your administrator.");
-        setLoading(false);
-        return false;
-      }
-      setProfile(p);
-      setUser(firebaseUserToUser(cred.user, p));
+      const resp = await authApi.login(username, password, mfa_code);
+      tokens.set(resp.access_token, resp.refresh_token);
+      const me = await authApi.me();
+      setUser(me);
       setLoading(false);
       return true;
     } catch (err: unknown) {
-      const code = (err as { code?: string }).code ?? "";
-      if (code === "auth/user-not-found" || code === "auth/wrong-password" || code === "auth/invalid-credential") {
-        setError("Invalid email or password.");
-      } else if (code === "auth/too-many-requests") {
-        setError("Too many failed attempts. Try again later.");
-      } else if (code === "auth/user-disabled") {
-        setError("This account has been disabled.");
+      setLoading(false);
+      if (err instanceof ApiError) {
+        const detail = err.detail as { error?: string; message?: string } | null;
+        if (detail?.error === "mfa_required") {
+          setMfaRequired(true);
+          setError(null);
+          return false;
+        }
+        setError(err.message);
       } else {
         setError("Sign in failed. Check your connection and try again.");
-      }
-      setLoading(false);
-      return false;
-    }
-  }, []);
-
-  const register = useCallback(async (data: RegisterData): Promise<boolean> => {
-    setError(null);
-    try {
-      const roleDef = ROLE_MAP[data.designation];
-      const cred = await createUserWithEmailAndPassword(auth, data.email, data.password);
-      const profileData: BhumiProfile = {
-        uid:         cred.user.uid,
-        email:       data.email,
-        fullName:    data.fullName,
-        employeeCode: data.employeeCode,
-        designation: data.designation,
-        domain:      data.domain,
-        department:  data.department,
-        state:       data.state,
-        district:    data.district,
-        mobile:      data.mobile,
-        status:      "pending",
-        permissions: roleDef?.permissions ?? [],
-        createdAt:   serverTimestamp(),
-      };
-      await setDoc(doc(db, "bhumi_users", cred.user.uid), profileData);
-      await setDoc(doc(db, "pending_registrations", cred.user.uid), {
-        ...profileData,
-        submittedAt: serverTimestamp(),
-      });
-      await signOut(auth);
-      return true;
-    } catch (err: unknown) {
-      const code = (err as { code?: string }).code ?? "";
-      if (code === "auth/email-already-in-use") {
-        setError("An account with this email already exists.");
-      } else if (code === "auth/weak-password") {
-        setError("Password must be at least 6 characters.");
-      } else {
-        setError("Registration failed. Check your connection and try again.");
       }
       return false;
     }
   }, []);
 
   const logout = useCallback(async () => {
-    await signOut(auth);
+    await authApi.logout();
     setUser(null);
-    setProfile(null);
-    setFbUser(null);
     router.push("/login");
   }, [router]);
 
   const refresh = useCallback(async () => {
-    if (fbUser) await loadProfile(fbUser);
-  }, [fbUser, loadProfile]);
+    if (!tokens.access()) return;
+    try {
+      const me = await authApi.me();
+      setUser(me);
+    } catch {
+      /* silently ignore if offline */
+    }
+  }, []);
 
   const can = useCallback(
     (...permissions: string[]) => !!user && permissions.every((p) => user.permissions.includes(p)),
@@ -492,8 +340,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<AuthState>(
-    () => ({ user, profile, loading, error, login, register, logout, can, hasRole, refresh }),
-    [user, profile, loading, error, login, register, logout, can, hasRole, refresh],
+    () => ({ user, loading, error, mfaRequired, login, logout, can, hasRole, refresh }),
+    [user, loading, error, mfaRequired, login, logout, can, hasRole, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
