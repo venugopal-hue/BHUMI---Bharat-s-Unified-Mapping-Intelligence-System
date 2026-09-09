@@ -263,7 +263,7 @@ export default function LoginPage() {
                     {!mfaRequired ? (
                       <>
                         <div>
-                          <Label>Employee code / Username</Label>
+                          <Label>Username or Email</Label>
                           <div className="relative mt-1">
                             <InputIcon icon={User} />
                             <input
@@ -273,7 +273,7 @@ export default function LoginPage() {
                               value={username}
                               onChange={(e) => setUsername(e.target.value)}
                               autoComplete="username"
-                              placeholder="e.g. MH-RD-0042"
+                              placeholder="Username or email"
                               required
                               autoFocus
                             />

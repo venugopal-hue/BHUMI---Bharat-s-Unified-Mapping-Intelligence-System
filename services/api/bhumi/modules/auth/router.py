@@ -48,10 +48,12 @@ LOCKOUT_MINUTES = 15
 
 
 async def _load_user(session, username: str) -> User | None:
+    val = username.lower().strip()
+    # Accept username or email
     result = await session.execute(
         select(User)
         .options(selectinload(User.roles), selectinload(User.jurisdictions))
-        .where(User.username == username.lower().strip())
+        .where((User.username == val) | (User.email == val))
     )
     return result.scalar_one_or_none()
 
