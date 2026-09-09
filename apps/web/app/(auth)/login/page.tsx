@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import ReCAPTCHA from "react-google-recaptcha";
+import { useEffect, useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
@@ -155,8 +154,6 @@ export default function LoginPage() {
   const [password, setPassword]   = useState("");
   const [mfaCode, setMfaCode]     = useState("");
   const [showPass, setShowPass]   = useState(false);
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
-  const captchaRef = useRef<ReCAPTCHA>(null);
 
   useEffect(() => {
     if (user) router.replace("/dashboard");
@@ -164,14 +161,8 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!captchaToken && !mfaRequired) return;
     const ok = await login(username, password, mfaCode || undefined);
-    if (ok) {
-      router.push("/dashboard");
-    } else if (!mfaRequired) {
-      captchaRef.current?.reset();
-      setCaptchaToken(null);
-    }
+    if (ok) router.push("/dashboard");
   };
 
   return (
@@ -295,16 +286,7 @@ export default function LoginPage() {
                           </div>
                         </div>
 
-                        <div className="flex justify-center">
-                          <ReCAPTCHA
-                            ref={captchaRef}
-                            sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"
-                            onChange={(token) => setCaptchaToken(token)}
-                            onExpired={() => setCaptchaToken(null)}
-                          />
-                        </div>
-
-                        <button type="submit" className="btn-primary w-full py-3 text-sm" disabled={loading || !captchaToken}>
+                        <button type="submit" className="btn-primary w-full py-3 text-sm" disabled={loading}>
                           {loading
                             ? <><Loader2 size={15} className="animate-spin" /> Signing in…</>
                             : <>Sign In <ArrowRight size={15} /></>}
