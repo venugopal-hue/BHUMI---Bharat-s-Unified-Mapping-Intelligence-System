@@ -274,19 +274,6 @@ export default function LoginPage() {
                         ? <><Loader2 size={15} className="animate-spin" /> Signing in…</>
                         : <>Sign In <ArrowRight size={15} /></>}
                     </button>
-
-                    <div className="relative my-2 flex items-center gap-2">
-                      <div className="flex-1 border-t border-[rgb(var(--bhumi-border))]" />
-                      <span className="text-xs text-[rgb(var(--bhumi-muted))]">or</span>
-                      <div className="flex-1 border-t border-[rgb(var(--bhumi-border))]" />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleDemoLogin}
-                      className="btn-secondary w-full py-2.5 text-sm"
-                    >
-                      Demo Access (SIH Judges)
-                    </button>
                   </form>
 
                   <div className="mt-5 flex items-start gap-2.5 rounded-lg border border-[rgb(var(--bhumi-border))] bg-[rgb(var(--bhumi-surface-2))] p-3">
