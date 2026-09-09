@@ -22,6 +22,120 @@ import {
 import { BhumiMark } from "@/components/gov/BhumiMark";
 import { GovFooter } from "@/components/gov/GovFooter";
 import { useAuth } from "@/lib/auth";
+import { request } from "@/lib/api";
+
+function RegisterForm() {
+  const [form, setForm] = useState({ full_name: "", email: "", username: "", password: "", confirm: "", designation: "", state: "", district: "" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (form.password !== form.confirm) { setError("Passwords do not match."); return; }
+    setLoading(true); setError(null);
+    try {
+      await request("POST", "/auth/register", {
+        full_name: form.full_name, email: form.email, username: form.username,
+        password: form.password, designation: form.designation,
+        state: form.state || undefined, district: form.district || undefined,
+      });
+      setDone(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Registration failed. Please try again.";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (done) return (
+    <div className="flex flex-col items-center justify-center h-full py-10 text-center">
+      <ShieldCheck size={40} className="mb-4 text-[rgb(var(--bhumi-primary))]" />
+      <h2 className="text-xl font-bold text-[rgb(var(--bhumi-text))] mb-2">Request submitted</h2>
+      <p className="text-sm text-[rgb(var(--bhumi-muted))] max-w-xs">
+        Your registration is pending admin approval. You will receive credentials once approved.
+      </p>
+    </div>
+  );
+
+  return (
+    <>
+      <h2 className="mb-1 text-2xl font-bold text-[rgb(var(--bhumi-text))]">Create Account</h2>
+      <p className="mb-6 text-sm text-[rgb(var(--bhumi-muted))]">Register as a BHUMI officer. An admin will approve your request.</p>
+
+      {error && (
+        <div role="alert" className="mb-4 flex items-start gap-2 rounded-lg border border-[rgb(var(--bhumi-danger)/0.3)] bg-[rgb(var(--bhumi-danger-soft))] p-3">
+          <AlertCircle size={15} className="mt-0.5 shrink-0 text-[rgb(var(--bhumi-danger))]" />
+          <p className="text-xs text-[rgb(var(--bhumi-danger))]">{error}</p>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <Label>Full name</Label>
+          <div className="relative mt-1">
+            <InputIcon icon={User} />
+            <input className="input w-full pl-9" placeholder="e.g. Priya Sharma" required value={form.full_name} onChange={set("full_name")} />
+          </div>
+        </div>
+        <div>
+          <Label>Government email</Label>
+          <div className="relative mt-1">
+            <InputIcon icon={Mail} />
+            <input type="email" className="input w-full pl-9" placeholder="officer@nic.in" required value={form.email} onChange={set("email")} />
+          </div>
+        </div>
+        <div>
+          <Label>Username / Employee code</Label>
+          <div className="relative mt-1">
+            <InputIcon icon={User} />
+            <input className="input w-full pl-9" placeholder="e.g. MH-RD-0042" required value={form.username} onChange={set("username")} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Password</Label>
+            <div className="relative mt-1">
+              <InputIcon icon={Lock} />
+              <input type="password" className="input w-full pl-9" required minLength={8} value={form.password} onChange={set("password")} />
+            </div>
+          </div>
+          <div>
+            <Label>Confirm password</Label>
+            <div className="relative mt-1">
+              <InputIcon icon={Lock} />
+              <input type="password" className="input w-full pl-9" required value={form.confirm} onChange={set("confirm")} />
+            </div>
+          </div>
+        </div>
+        <div>
+          <Label>Designation / Role</Label>
+          <div className="relative mt-1">
+            <InputIcon icon={KeyRound} />
+            <input className="input w-full pl-9" placeholder="e.g. District Revenue Officer" value={form.designation} onChange={set("designation")} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>State</Label>
+            <input className="input w-full" placeholder="e.g. Maharashtra" value={form.state} onChange={set("state")} />
+          </div>
+          <div>
+            <Label>District</Label>
+            <input className="input w-full" placeholder="e.g. Pune" value={form.district} onChange={set("district")} />
+          </div>
+        </div>
+        <button type="submit" className="btn-primary w-full py-3 text-sm" disabled={loading}>
+          {loading ? <><Loader2 size={15} className="animate-spin" /> Submitting…</> : <>Register <ArrowRight size={15} /></>}
+        </button>
+      </form>
+    </>
+  );
+}
 
 function Label({ children }: { children: React.ReactNode }) {
   return <p className="mb-1 text-xs font-semibold text-muted">{children}</p>;
@@ -124,7 +238,7 @@ export default function LoginPage() {
                       ? "border-b-2 border-[rgb(var(--bhumi-primary))] text-[rgb(var(--bhumi-primary))]"
                       : "text-[rgb(var(--bhumi-muted))] hover:text-[rgb(var(--bhumi-text))]"}`}
                 >
-                  {t === "login" ? <><KeyRound size={14} /> Sign In</> : <><UserPlus size={14} /> Access Request</>}
+                  {t === "login" ? <><KeyRound size={14} /> Sign In</> : <><UserPlus size={14} /> Sign Up</>}
                 </button>
               ))}
             </div>
@@ -246,33 +360,9 @@ export default function LoginPage() {
                 </>
               )}
 
-              {/* ══════════ ACCESS REQUEST TAB ══════════ */}
+              {/* ══════════ SIGN UP TAB ══════════ */}
               {tab === "register" && (
-                <div className="flex flex-col items-center justify-center h-full py-8 text-center">
-                  <div className="w-14 h-14 rounded-2xl bg-[rgb(var(--bhumi-primary))]/10 flex items-center justify-center mb-5">
-                    <Mail size={24} className="text-[rgb(var(--bhumi-primary))]" />
-                  </div>
-                  <h2 className="mb-2 text-xl font-bold text-[rgb(var(--bhumi-text))]">Need Access?</h2>
-                  <p className="mb-6 max-w-xs text-sm leading-relaxed text-[rgb(var(--bhumi-muted))]">
-                    BHUMI accounts are provisioned by system administrators. To request access, contact your
-                    department&apos;s nodal officer or write to the BHUMI platform team.
-                  </p>
-                  <div className="w-full max-w-xs space-y-3 text-left rounded-xl border border-[rgb(var(--bhumi-border))] bg-[rgb(var(--bhumi-surface-2))] p-4">
-                    <p className="text-xs font-semibold text-[rgb(var(--bhumi-text))]">What to include in your request:</p>
-                    {["Full name and employee / officer code", "Department and jurisdiction (state / district)", "Designation and required access level", "Government email address (.gov.in)"].map((item) => (
-                      <div key={item} className="flex items-start gap-2">
-                        <span className="mt-0.5 text-[rgb(var(--bhumi-primary))]">·</span>
-                        <p className="text-xs text-[rgb(var(--bhumi-muted))]">{item}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-5 flex items-start gap-2.5 rounded-lg border border-[rgb(var(--bhumi-border))] bg-[rgb(var(--bhumi-surface-2))] p-3 w-full max-w-xs text-left">
-                    <ShieldAlert size={14} className="mt-0.5 shrink-0 text-[rgb(var(--bhumi-muted))]" />
-                    <p className="text-2xs leading-relaxed text-[rgb(var(--bhumi-muted))]">
-                      Access is subject to approval and background verification as per MeitY guidelines.
-                    </p>
-                  </div>
-                </div>
+                <RegisterForm />
               )}
             </div>
           </section>

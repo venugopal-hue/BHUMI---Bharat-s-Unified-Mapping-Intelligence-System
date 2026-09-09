@@ -37,6 +37,7 @@ from bhumi.modules.auth.schemas import (
     RefreshRequest,
     TokenResponse,
     UpdateProfileRequest,
+    RegisterRequest,
     UserOut,
 )
 
@@ -63,6 +64,49 @@ def _principal_claims(user: User) -> dict:
             for j in user.jurisdictions
         ],
     }
+
+
+@router.post("/register", status_code=201, summary="Self-registration (pending approval)")
+async def register(payload: RegisterRequest, session: SessionDep):
+    """Creates a pending user account. Admin must approve before first login."""
+    from bhumi.db.models.identity import UserJurisdiction
+
+    # Duplicate checks
+    if (await session.execute(select(User).where(User.username == payload.username.lower().strip()))).scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Username already taken.")
+    if (await session.execute(select(User).where(User.email == payload.email.lower().strip()))).scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Email already registered.")
+
+    errors = password_strength_errors(payload.password)
+    if errors:
+        raise HTTPException(status_code=422, detail="; ".join(errors))
+
+    user = User(
+        username=payload.username.lower().strip(),
+        full_name=payload.full_name.strip(),
+        email=payload.email.lower().strip(),
+        designation=payload.designation,
+        password_hash=hash_password(payload.password),
+        is_active=False,
+        must_change_password=False,
+    )
+    session.add(user)
+    await session.flush()
+
+    if payload.state or payload.district:
+        label = ", ".join(filter(None, [payload.district, payload.state]))
+        session.add(UserJurisdiction(user_id=user.id, level="district", label=label))
+
+    await record_audit(
+        session,
+        entity_type="user",
+        entity_id=str(user.id),
+        action=AuditAction.CREATE.value,
+        actor_id=str(user.id),
+        actor_username=user.username,
+        payload={"source": "self_registration"},
+    )
+    return {"id": str(user.id), "status": "pending", "message": "Registration submitted. Await admin approval."}
 
 
 @router.post("/login", response_model=TokenResponse, summary="Sign in")
