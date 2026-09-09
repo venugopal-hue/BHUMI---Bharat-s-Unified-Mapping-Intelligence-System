@@ -26,6 +26,8 @@ from bhumi.modules.review.router import router as review_router
 from bhumi.modules.validation.router import router as validation_router
 from bhumi.modules.vault.router import router as vault_router
 from bhumi.modules.learning.router import router as learning_router
+from bhumi.modules.notifications.router import router as notifications_router
+from bhumi.modules.users.router import router as users_router
 
 logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL, logging.INFO))
 structlog.configure(
@@ -105,6 +107,8 @@ app.include_router(insights_router, prefix=f"{P}/analytics", tags=["Insights"])
 app.include_router(integrations_router, prefix=P, tags=["Integrations"])
 app.include_router(vault_router, prefix=P, tags=["Vault · Audit"])
 app.include_router(learning_router, prefix=f"{P}/models", tags=["Learning"])
+app.include_router(notifications_router, prefix=P, tags=["Notifications"])
+app.include_router(users_router, prefix=P, tags=["Users"])
 
 
 @app.exception_handler(ValueError)

@@ -31,10 +31,12 @@ from bhumi.modules.auth.schemas import (
     ChangePasswordRequest,
     JurisdictionOut,
     LoginRequest,
+    LoginSessionOut,
     MfaSetupResponse,
     MfaVerifyRequest,
     RefreshRequest,
     TokenResponse,
+    UpdateProfileRequest,
     UserOut,
 )
 
@@ -360,4 +362,119 @@ async def mfa_verify(payload: MfaVerifyRequest, principal: CurrentUser, session:
         actor_id=principal.user_id,
         actor_username=principal.username,
         payload={"mfa_enabled": True},
+    )
+
+
+@router.patch("/me", response_model=UserOut, summary="Update own profile")
+async def update_me(payload: UpdateProfileRequest, principal: CurrentUser, session: SessionDep):
+    result = await session.execute(
+        select(User)
+        .options(selectinload(User.roles), selectinload(User.jurisdictions))
+        .where(User.id == uuid.UUID(principal.user_id))
+    )
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    if payload.full_name is not None:
+        user.full_name = payload.full_name
+    if payload.email is not None:
+        user.email = payload.email
+    if payload.phone is not None:
+        user.phone = payload.phone
+    if payload.preferred_locale is not None:
+        user.preferred_locale = payload.preferred_locale
+
+    await record_audit(
+        session,
+        entity_type="user",
+        entity_id=str(user.id),
+        action=AuditAction.UPDATE.value,
+        actor_id=principal.user_id,
+        actor_username=principal.username,
+        payload={"fields": [k for k, v in payload.model_dump().items() if v is not None]},
+    )
+
+    perms: set[str] = set()
+    for key in user.role_keys:
+        try:
+            perms |= ROLE_PERMISSIONS.get(RoleKey(key), set())
+        except ValueError:
+            continue
+
+    return UserOut(
+        id=str(user.id),
+        username=user.username,
+        full_name=user.full_name,
+        full_name_local=user.full_name_local,
+        designation=user.designation,
+        email=user.email,
+        phone=user.phone,
+        preferred_locale=user.preferred_locale,
+        mfa_enabled=user.mfa_enabled,
+        is_active=user.is_active,
+        last_login_at=user.last_login_at,
+        roles=user.role_keys,
+        permissions=sorted(perms),
+        jurisdictions=[
+            JurisdictionOut(level=j.level, ref_id=str(j.ref_id) if j.ref_id else None, label=j.label)
+            for j in user.jurisdictions
+        ],
+    )
+
+
+@router.get("/sessions", summary="Login history for the current user")
+async def list_sessions(principal: CurrentUser, session: SessionDep):
+    """Returns the 50 most recent refresh tokens (= login events) for this user."""
+    result = await session.execute(
+        select(RefreshToken)
+        .where(RefreshToken.user_id == uuid.UUID(principal.user_id))
+        .order_by(RefreshToken.created_at.desc())
+        .limit(50)
+    )
+    tokens_list = result.scalars().all()
+    rows = []
+    for t in tokens_list:
+        is_active = t.revoked_at is None and t.expires_at > datetime.now(UTC)
+        logout_at = t.revoked_at if t.revoked_at else (None if is_active else t.expires_at)
+        duration_s = None
+        if logout_at and t.created_at:
+            duration_s = max(0, int((logout_at - t.created_at.replace(tzinfo=UTC)).total_seconds()))
+        ua = t.user_agent or ""
+        device_type = "mobile" if any(x in ua.lower() for x in ("android", "iphone", "ipad", "mobile")) else "desktop"
+        rows.append({
+            "id": str(t.id),
+            "login_at": t.created_at,
+            "logout_at": logout_at,
+            "duration_s": duration_s,
+            "ip": t.ip_address,
+            "device": ua[:120] if ua else "Unknown",
+            "device_type": device_type,
+            "status": "ACTIVE" if is_active else "CLOSED",
+        })
+    return rows
+
+
+@router.delete("/sessions", status_code=204, summary="Revoke all sessions except the current one")
+async def revoke_other_sessions(principal: CurrentUser, session: SessionDep):
+    """Revokes all active refresh tokens for this user.
+    The client's current access token remains valid until its natural expiry."""
+    result = await session.execute(
+        select(RefreshToken)
+        .where(
+            RefreshToken.user_id == uuid.UUID(principal.user_id),
+            RefreshToken.revoked_at.is_(None),
+        )
+    )
+    now = datetime.now(UTC)
+    for t in result.scalars().all():
+        t.revoked_at = now
+    await record_audit(
+        session,
+        entity_type="user",
+        entity_id=principal.user_id,
+        action=AuditAction.LOGOUT.value,
+        actor_id=principal.user_id,
+        actor_username=principal.username,
+        payload={"reason": "bulk_revoke"},
     )

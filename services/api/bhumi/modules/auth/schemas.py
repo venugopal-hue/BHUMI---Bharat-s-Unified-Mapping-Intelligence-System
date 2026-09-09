@@ -66,3 +66,23 @@ class MfaSetupResponse(BaseModel):
 
 class MfaVerifyRequest(BaseModel):
     code: str = Field(..., min_length=6, max_length=8)
+
+
+class UpdateProfileRequest(BaseModel):
+    full_name: str | None = Field(None, min_length=1, max_length=160)
+    email: str | None = Field(None, max_length=160)
+    phone: str | None = Field(None, max_length=24)
+    preferred_locale: str | None = Field(None, max_length=8)
+
+
+class LoginSessionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    login_at: datetime
+    logout_at: datetime | None = None
+    duration_s: int | None = None
+    ip: str | None = None
+    device: str | None = None
+    device_type: str = "desktop"
+    status: str
