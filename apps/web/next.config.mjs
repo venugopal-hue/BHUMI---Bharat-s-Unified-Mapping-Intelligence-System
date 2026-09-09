@@ -4,9 +4,6 @@ const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: false },
 
-  // Required for Cloudflare Pages deployment
-  output: "standalone",
-
   async rewrites() {
     // In production the frontend calls the Railway API directly via NEXT_PUBLIC_API_URL.
     // This rewrite is only active in local dev (localhost:3000 → localhost:8000).
