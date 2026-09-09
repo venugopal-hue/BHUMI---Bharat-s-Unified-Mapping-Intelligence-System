@@ -391,7 +391,7 @@ export const integrationsApi = {
 /* ── Learning ────────────────────────────────────────────────────── */
 export const learningApi = {
   models: (_query?: RequestOptions["query"]) =>
-    get<{ key: string; name: string; version: string; status: string; accuracy: number | null; last_trained_at: string | null }[]>("/models", _query),
+    get<{ id: string; key: string; name: string; version: string; status: string; accuracy: number | null; last_trained_at: string | null }[]>("/models", _query),
   history: (_modelKey: string) =>
     get<{ model_key: string; versions: number; series: Record<string, unknown>[]; primary_metric: string; improvement_points: number | null; active_version: string | null }>(`/models/${_modelKey}/history`),
   promote: (_modelId: string, traffic_pct = 100) =>
