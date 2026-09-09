@@ -28,12 +28,18 @@ EXTENSIONS = [
 
 
 async def create_schema() -> None:
-    async with engine.begin() as conn:
+    # Extensions must be created outside a transaction block (autocommit)
+    async with engine.connect() as conn:
+        await conn.execution_options(isolation_level="AUTOCOMMIT")
         for extension in EXTENSIONS:
             try:
                 await conn.execute(text(f'CREATE EXTENSION IF NOT EXISTS "{extension}"'))
+                log.info("extension_ok", extension=extension)
             except Exception as exc:
                 log.warning("extension_skipped", extension=extension, error=str(exc))
+
+    # Create tables in a separate connection/transaction
+    async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     log.info("schema_ready", tables=len(Base.metadata.tables))
 
