@@ -139,7 +139,6 @@ export default function IntegrationsPage() {
       await integrationsApi.toggle(key, next);
       toast.success(next ? "Integration enabled" : "Integration disabled", key);
     } catch {
-      // Revert on failure; backend endpoint may not exist in demo
       setLocalEnabled((prev) => ({ ...prev, [key]: current }));
       toast.warning("Toggle not persisted", "Enable/disable requires backend support. State shown is local only.");
     }

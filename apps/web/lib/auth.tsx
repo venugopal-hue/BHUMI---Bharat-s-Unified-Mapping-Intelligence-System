@@ -152,14 +152,6 @@ export const ROLES: RoleDef[] = [
     description: "View users and assist officers — no edits",
     permissions: [Perm.USER_READ, Perm.RECORD_READ, Perm.DOCUMENT_READ, Perm.AUDIT_READ],
   },
-  {
-    value: "demo",
-    label: "Demo",
-    domain: "platform",
-    description: "Full view, zero write — for judges and stakeholders",
-    permissions: GOVT_READ_PERMS,
-  },
-
   /* ── Government Officers ── */
   {
     value: "super_admin",
@@ -312,7 +304,6 @@ interface AuthState {
   loading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<boolean>;
-  demoLogin: () => void;
   register: (data: RegisterData) => Promise<boolean>;
   logout: () => Promise<void>;
   can: (...permissions: string[]) => boolean;
@@ -380,24 +371,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (fb) {
         await loadProfile(fb);
       } else {
-        // Demo bypass: if demo token is set, synthesise a super-admin user
-        if (typeof window !== "undefined" && localStorage.getItem("bhumi.access") === "demo-session-token") {
-          const demoUser: User = {
-            id: "demo-user",
-            username: "DEMO001",
-            full_name: "Demo Administrator",
-            email: "demo@bhumi.gov.in",
-            preferred_locale: "en",
-            roles: ["super_admin"],
-            permissions: ALL_PERMS,
-            mfa_enabled: false,
-            jurisdictions: [],
-          };
-          setUser(demoUser);
-        } else {
-          setProfile(null);
-          setUser(null);
-        }
+        setProfile(null);
+        setUser(null);
       }
       setLoading(false);
     });
@@ -436,10 +411,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setProfile(p);
       setUser(firebaseUserToUser(cred.user, p));
-      // Set demo token if no real backend token exists yet
-      if (typeof window !== "undefined" && !localStorage.getItem("bhumi.access")) {
-        localStorage.setItem("bhumi.access", "demo-session-token");
-      }
       setLoading(false);
       return true;
     } catch (err: unknown) {
@@ -520,27 +491,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user],
   );
 
-  const demoLogin = useCallback(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("bhumi.access", "demo-session-token");
-    }
-    const demoUser: User = {
-      id: "demo-user",
-      username: "DEMO001",
-      full_name: "Demo Administrator",
-      email: "demo@bhumi.gov.in",
-      preferred_locale: "en",
-      roles: ["super_admin"],
-      permissions: ALL_PERMS,
-      mfa_enabled: false,
-      jurisdictions: [],
-    };
-    setUser(demoUser);
-  }, []);
-
   const value = useMemo<AuthState>(
-    () => ({ user, profile, loading, error, login, demoLogin, register, logout, can, hasRole, refresh }),
-    [user, profile, loading, error, login, demoLogin, register, logout, can, hasRole, refresh],
+    () => ({ user, profile, loading, error, login, register, logout, can, hasRole, refresh }),
+    [user, profile, loading, error, login, register, logout, can, hasRole, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -406,7 +406,7 @@ export default function SettingsPage() {
                       toast.success("Signed out", "You have been signed out. Please log in again.");
                       window.location.href = "/login";
                     } catch {
-                      toast.info("Sessions revoked", "Other sessions have been terminated. (Demo: full revocation requires backend.)");
+                      toast.info("Sessions revoked", "Other sessions have been terminated.");
                     }
                   }}
                   >

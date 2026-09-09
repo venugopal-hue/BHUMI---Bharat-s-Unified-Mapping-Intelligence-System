@@ -46,8 +46,6 @@ export const STRINGS: Dict = {
   signOut:            { en: "Sign out",            hi: "साइन आउट",             mr: "साइन आउट" },
   username:           { en: "Username or employee code", hi: "उपयोगकर्ता नाम या कर्मचारी कोड", mr: "वापरकर्ता नाव किंवा कर्मचारी कोड" },
   password:           { en: "Password",            hi: "पासवर्ड",               mr: "पासवर्ड" },
-  demoAccounts:       { en: "Demo accounts",       hi: "डेमो खाते",             mr: "डेमो खाती" },
-
   // ─── Common actions ────────────────────────────────────────────────────────
   search:             { en: "Search",              hi: "खोजें",                mr: "शोधा" },
   searchPlaceholder:  { en: "Search…",             hi: "खोजें…",               mr: "शोधा…" },
@@ -90,7 +88,6 @@ export const STRINGS: Dict = {
   theme:              { en: "Theme",               hi: "थीम",                  mr: "थीम" },
   textSize:           { en: "Text size",           hi: "पाठ आकार",             mr: "मजकूर आकार" },
   highContrast:       { en: "High contrast",       hi: "उच्च कंट्रास्ट",        mr: "उच्च विरोधाभास" },
-  demoModeBanner:     { en: "Demo mode — running without a backend. All data is simulated.", hi: "डेमो मोड — बैकएंड के बिना चल रहा है। सभी डेटा अनुकरणीय है।", mr: "डेमो मोड — बॅकएंडशिवाय चालत आहे। सर्व डेटा अनुकरणीय आहे।" },
   showing:            { en: "Showing",             hi: "दिखाया जा रहा है",      mr: "दाखवत आहे" },
   of:                 { en: "of",                  hi: "में से",               mr: "पैकी" },
   noResults:          { en: "No results match your filter.", hi: "आपके फ़िल्टर से कोई परिणाम नहीं मिला।", mr: "आपल्या फिल्टरशी जुळणारे कोणतेही परिणाम नाहीत." },

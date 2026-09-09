@@ -6,7 +6,7 @@ import { AlertTriangle, CheckCircle2, ChevronRight, FileText, Loader2, Upload, X
 
 import { Card, PageHeader, ProgressBar } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/Toast";
-import { intakeApi, isDemoMode } from "@/lib/api";
+import { intakeApi } from "@/lib/api";
 import { useTranslate } from "@/lib/preferences";
 import { formatBytes, sha256 } from "@/lib/utils";
 
@@ -125,13 +125,6 @@ export default function UploadPage() {
       if (!up) return;
       updateFile(entry.id, { stage: "uploading", storageKey: up.key });
       try {
-        if (isDemoMode() || up.url === "#demo") {
-          // Simulate upload progress in demo mode
-          for (let p = 10; p <= 100; p += 10) {
-            await new Promise((r) => setTimeout(r, 50));
-            updateFile(entry.id, { progress: p });
-          }
-        } else {
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.open("PUT", up.url);
@@ -144,7 +137,6 @@ export default function UploadPage() {
           xhr.onerror = () => reject(new Error("Network error"));
           xhr.send(entry.file);
         });
-        }
         updateFile(entry.id, { stage: "registering", progress: 100 });
       } catch (err) {
         updateFile(entry.id, { stage: "error", error: `Upload failed: ${(err as Error).message}` });

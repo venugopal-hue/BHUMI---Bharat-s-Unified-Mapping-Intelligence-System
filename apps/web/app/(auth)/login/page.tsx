@@ -78,7 +78,7 @@ function Select({ id, value, onChange, children, required }: {
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, demoLogin, register, error, loading, user } = useAuth();
+  const { login, register, error, loading, user } = useAuth();
   const [tab, setTab] = useState<"login" | "register">("login");
   const [registered, setRegistered] = useState(false);
 
@@ -118,11 +118,6 @@ export default function LoginPage() {
     return            { label: "Strong", color: "text-success", bar: "w-full bg-success" };
   };
   const strength = passwordStrength(regPass);
-
-  const handleDemoLogin = () => {
-    demoLogin();
-    router.push("/dashboard");
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
