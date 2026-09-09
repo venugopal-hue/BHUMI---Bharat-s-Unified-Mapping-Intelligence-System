@@ -369,7 +369,6 @@ export default function LoginPage() {
         </div>
       </main>
 
-      <GovFooter compact />
     </div>
   );
 }
