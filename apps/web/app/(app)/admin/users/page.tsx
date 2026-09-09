@@ -1,15 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   CheckCircle2, Clock, XCircle, RefreshCw, ShieldCheck, User, Building2, Shield, Search, X, UserPlus,
+  MessageSquare, ChevronDown, ChevronUp,
 } from "lucide-react";
 
 import { Card, EmptyState, PageHeader, SkeletonRows } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, ROLE_MAP, Perm } from "@/lib/auth";
-import { adminApi, type AdminUser } from "@/lib/api";
+import { adminApi, type AdminUser, type ChangeRequest } from "@/lib/api";
 import { Can } from "@/components/rbac/Can";
+import { cn } from "@/lib/utils";
 
 const STATUS_CHIP: Record<AdminUser["status"], { label: string; cls: string }> = {
   pending:   { label: "Pending",   cls: "bg-warn/10 text-warn border-warn/30" },
@@ -103,6 +106,12 @@ function InviteModal({ onClose, onInvite }: { onClose: () => void; onInvite: (fo
 export default function AdminUsersPage() {
   const toast = useToast();
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+
+  type PageTab = "users" | "change-requests";
+  const [pageTab, setPageTab] = useState<PageTab>(
+    searchParams.get("tab") === "change-requests" ? "change-requests" : "users"
+  );
 
   const [profiles, setProfiles]           = useState<AdminUser[]>([]);
   const [loading, setLoading]             = useState(true);
@@ -112,6 +121,10 @@ export default function AdminUsersPage() {
   const [changingRole, setChangingRole]   = useState<string | null>(null);
   const [showInvite, setShowInvite]       = useState(false);
   const [search, setSearch]               = useState("");
+
+  const [changeRequests, setChangeRequests]     = useState<ChangeRequest[]>([]);
+  const [crLoading, setCrLoading]               = useState(false);
+  const [expandedCr, setExpandedCr]             = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -125,7 +138,22 @@ export default function AdminUsersPage() {
     }
   }, [toast]);
 
+  const loadChangeRequests = useCallback(async () => {
+    setCrLoading(true);
+    try {
+      const data = await adminApi.listChangeRequests();
+      setChangeRequests(data);
+    } catch {
+      toast.error("Could not load change requests", "Check your connection and try again.");
+    } finally {
+      setCrLoading(false);
+    }
+  }, [toast]);
+
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (pageTab === "change-requests") void loadChangeRequests();
+  }, [pageTab, loadChangeRequests]);
 
   const updateStatus = async (id: string, status: AdminUser["status"]) => {
     setActing(id);
@@ -199,15 +227,119 @@ export default function AdminUsersPage() {
         breadcrumbs={[{ label: "Admin" }, { label: "Users" }]}
         actions={
           <div className="flex gap-2">
-            <button type="button" className="btn btn-primary text-sm" onClick={() => setShowInvite(true)}>
-              <UserPlus size={14} /> Invite user
-            </button>
-            <button type="button" className="btn-secondary" onClick={load}>
-              <RefreshCw size={14} /> Refresh
-            </button>
+            {pageTab === "users" && (
+              <>
+                <button type="button" className="btn btn-primary text-sm" onClick={() => setShowInvite(true)}>
+                  <UserPlus size={14} /> Invite user
+                </button>
+                <button type="button" className="btn-secondary" onClick={load}>
+                  <RefreshCw size={14} /> Refresh
+                </button>
+              </>
+            )}
+            {pageTab === "change-requests" && (
+              <button type="button" className="btn-secondary" onClick={loadChangeRequests}>
+                <RefreshCw size={14} /> Refresh
+              </button>
+            )}
           </div>
         }
       />
+
+      {/* Page tab switcher */}
+      <div className="flex gap-1 mb-5 border-b border-line">
+        {([
+          { key: "users",           label: "Officers",        badge: null },
+          { key: "change-requests", label: "Change Requests", badge: changeRequests.length || null },
+        ] as { key: PageTab; label: string; badge: number | null }[]).map(({ key, label, badge }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setPageTab(key)}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors relative",
+              pageTab === key
+                ? "text-primary after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary after:rounded-t"
+                : "text-muted hover:text-ink"
+            )}
+          >
+            {label}
+            {badge !== null && (
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary text-white text-2xs font-bold">
+                {badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* ══ CHANGE REQUESTS TAB ══ */}
+      {pageTab === "change-requests" && (
+        <Card bodyClassName="p-0">
+          {crLoading ? (
+            <div className="p-4"><SkeletonRows rows={4} /></div>
+          ) : changeRequests.length === 0 ? (
+            <EmptyState
+              title="No change requests"
+              description="When officers request changes to their employee code, role, or jurisdiction, they will appear here."
+            />
+          ) : (
+            <div className="divide-y divide-line">
+              {changeRequests.map((cr) => (
+                <div key={cr.id} className="px-5 py-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary mt-0.5">
+                      <MessageSquare size={14} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold text-ink">{cr.actor_username}</span>
+                        <span className="pill border border-line bg-surface-2 text-muted text-2xs">
+                          {cr.field}
+                        </span>
+                        <span className="text-xs text-muted ml-auto">
+                          {new Date(cr.created_at).toLocaleString("en-IN", {
+                            day: "2-digit", month: "short", year: "numeric",
+                            hour: "2-digit", minute: "2-digit", hour12: false,
+                          })}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="mt-1 flex items-center gap-1 text-xs text-muted hover:text-ink"
+                        onClick={() => setExpandedCr(expandedCr === cr.id ? null : cr.id)}
+                      >
+                        {expandedCr === cr.id ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                        {expandedCr === cr.id ? "Hide reason" : "Show reason"}
+                      </button>
+                      {expandedCr === cr.id && (
+                        <p className="mt-2 text-sm text-ink leading-relaxed bg-surface-2 rounded-lg border border-line px-3 py-2">
+                          {cr.reason}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        type="button"
+                        className="btn btn-secondary text-xs"
+                        onClick={() => {
+                          setPageTab("users");
+                          setSearch(cr.actor_username);
+                        }}
+                      >
+                        Find user
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* ══ USERS TAB ══ */}
+      {pageTab === "users" && <>
 
       {/* Pending alert */}
       {pendingCount > 0 && (
@@ -441,6 +573,7 @@ export default function AdminUsersPage() {
           </div>
         )}
       </Card>
+      </>}
     </Can>
   );
 }

@@ -451,6 +451,15 @@ export interface AdminUser {
   approved_by?: string | null;
 }
 
+export interface ChangeRequest {
+  id: string;
+  actor_username: string;
+  actor_id: string | null;
+  field: string;
+  reason: string;
+  created_at: string;
+}
+
 export const adminApi = {
   listUsers: (query?: RequestOptions["query"]) =>
     get<AdminUser[]>("/users", query),
@@ -460,6 +469,8 @@ export const adminApi = {
     patch<AdminUser>(`/users/${id}/role`, { designation }),
   inviteUser: (payload: { full_name: string; email: string; role: string; state?: string; district?: string }) =>
     post<{ id: string; status: string }>("/users/invite", payload),
+  listChangeRequests: (query?: RequestOptions["query"]) =>
+    get<ChangeRequest[]>("/users/change-requests", query),
 };
 
 export const publicApi = {

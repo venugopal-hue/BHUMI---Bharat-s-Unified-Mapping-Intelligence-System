@@ -15,6 +15,7 @@ from bhumi.core.deps import CurrentUser, PageDep, RequirePermissions, SessionDep
 from bhumi.core.enums import AuditAction
 from bhumi.core.rbac import ROLE_PERMISSIONS, Perm, RoleKey
 from bhumi.core.security import hash_password
+from bhumi.db.models.governance import AuditLog, Notification
 from bhumi.db.models.identity import Role, User, UserJurisdiction, UserRole
 from bhumi.modules.auth.schemas import JurisdictionOut, UserOut
 
@@ -264,7 +265,9 @@ async def invite_user(payload: InviteRequest, principal: CurrentUser, session: S
     summary="Submit a profile-change request to an administrator",
 )
 async def change_request(payload: ChangeRequestBody, principal: CurrentUser, session: SessionDep):
-    """Records the change request in the audit log. Admins can review via the audit trail."""
+    """Records the change request in the audit log and notifies all users with user:manage permission."""
+    request_id = str(uuid.uuid4())
+
     await record_audit(
         session,
         entity_type="user",
@@ -272,6 +275,81 @@ async def change_request(payload: ChangeRequestBody, principal: CurrentUser, ses
         action=AuditAction.UPDATE.value,
         actor_id=principal.user_id,
         actor_username=principal.username,
-        payload={"type": "change_request", "field": payload.field, "reason": payload.reason},
+        payload={
+            "type": "change_request",
+            "request_id": request_id,
+            "field": payload.field,
+            "reason": payload.reason,
+        },
     )
-    return {"id": str(uuid.uuid4()), "status": "submitted"}
+
+    # Find all users who have a role with user:manage and notify them.
+    manage_roles = [
+        rk.value for rk, perms in ROLE_PERMISSIONS.items()
+        if Perm.USER_MANAGE in perms
+    ]
+    if manage_roles:
+        admin_role_rows = (
+            await session.execute(select(Role).where(Role.key.in_(manage_roles)))
+        ).scalars().all()
+        admin_role_ids = [r.id for r in admin_role_rows]
+
+        if admin_role_ids:
+            from bhumi.db.models.identity import UserRole as _UserRole
+            admin_users = (
+                await session.execute(
+                    select(User.id)
+                    .join(_UserRole, _UserRole.user_id == User.id)
+                    .where(_UserRole.role_id.in_(admin_role_ids), User.is_active == True)  # noqa: E712
+                )
+            ).scalars().all()
+
+            for admin_id in admin_users:
+                session.add(Notification(
+                    user_id=admin_id,
+                    kind="change_request",
+                    title=f"Profile change request — {payload.field}",
+                    body=(
+                        f"{principal.username} has requested a change to their "
+                        f'"{payload.field}": {payload.reason[:200]}'
+                    ),
+                    link="/admin/users?tab=change-requests",
+                    severity="INFO",
+                ))
+
+    return {"id": request_id, "status": "submitted"}
+
+
+@router.get(
+    "/users/change-requests",
+    summary="List pending profile change requests (admin)",
+    dependencies=[Depends(RequirePermissions(Perm.USER_MANAGE))],
+)
+async def list_change_requests(session: SessionDep, pages: PageDep):
+    """Reads change_request entries from the audit log."""
+    from sqlalchemy import String, cast
+
+    result = await session.execute(
+        select(AuditLog)
+        .where(
+            AuditLog.entity_type == "user",
+            AuditLog.action == AuditAction.UPDATE.value,
+            # JSONB text extraction: payload->>'type' = 'change_request'
+            cast(AuditLog.payload["type"], String) == "change_request",
+        )
+        .order_by(AuditLog.id.desc())
+        .offset(pages.offset)
+        .limit(pages.limit)
+    )
+    rows = result.scalars().all()
+    return [
+        {
+            "id": (row.payload or {}).get("request_id", str(row.id)),
+            "actor_username": row.actor_username,
+            "actor_id": str(row.actor_id) if row.actor_id else None,
+            "field": (row.payload or {}).get("field", ""),
+            "reason": (row.payload or {}).get("reason", ""),
+            "created_at": row.created_at,
+        }
+        for row in rows
+    ]
